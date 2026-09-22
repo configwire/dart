@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ConfigNest Admin</title>
+<link rel="stylesheet" href="/styles.css">
+<!-- Pinned vendor copy (htmx 2.0.7). If this file is missing, replace with the
+     CDN fallback below (documented fallback, not silent):
+     <script src="https://unpkg.com/htmx.org@2.0.7/dist/htmx.min.js"></script> -->
+<script src="/vendor/htmx.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>ConfigNest Admin</h1>
+  <nav>
+    <a href="#flags">Flags</a>
+    <a href="#releases">Releases</a>
+    <a href="#publish">Publish</a>
+    <a href="#stats">Stats</a>
+    <button id="logout-btn" type="button" hidden>Log out</button>
+  </nav>
+</header>
+<main>
+  <section id="login-section" aria-label="Login">
+    <h2>Superuser login</h2>
+    <form id="login-form">
+      <label>Email <input id="login-email" name="identity" type="email" autocomplete="username" required></label>
+      <label>Password <input id="login-password" name="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit">Log in</button>
+    </form>
+    <p id="login-error" role="alert" hidden></p>
+  </section>
+
+  <section id="admin-section" hidden>
+    <label>Env slug <input id="env-input" type="text" value="dev" spellcheck="false"></label>
+
+    <h2 id="flags">Flags</h2>
+    <label>Group filter
+      <select id="group-filter">
+        <option value="">(all groups)</option>
+      </select>
+    </label>
+    <button id="refresh-flags" type="button">Refresh flags</button>
+    <table id="flag-table" aria-label="Flags">
+      <thead><tr><th>Key</th><th>Type</th><th>Group</th><th>Default</th><th></th></tr></thead>
+      <tbody id="flag-tbody"><tr><td colspan="5">Not loaded.</td></tr></tbody>
+    </table>
+
+    <h2 id="releases">Releases</h2>
+    <button id="refresh-releases" type="button">Refresh releases</button>
+    <ul id="release-list" aria-label="Releases"><li>Not loaded.</li></ul>
+
+    <h2 id="publish">Publish</h2>
+    <form id="publish-form">
+      <label>Note (optional) <input id="publish-note" name="note" type="text" maxlength="500"></label>
+      <label>baseVersion (auto-filled from latest) <input id="publish-base" name="baseVersion" type="number" min="0" required></label>
+      <button type="submit">Publish new version</button>
+    </form>
+    <p id="publish-result" role="status"></p>
+
+    <h2 id="stats">Stats</h2>
+    <label>Flag <input id="stats-flag" type="text" spellcheck="false" placeholder="flag key"></label>
+    <label>Since <input id="stats-since" type="text" value="7d" spellcheck="false"></label>
+    <button id="refresh-stats" type="button">Load stats</button>
+    <div id="stats-view" aria-label="Stats">Not loaded.</div>
+  </section>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>

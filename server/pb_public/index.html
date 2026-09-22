@@ -15,6 +15,9 @@
   <h1>ConfigNest Admin</h1>
   <nav>
     <a href="#flags">Flags</a>
+    <a href="#rules">Rules</a>
+    <a href="#experiments">Experiments</a>
+    <a href="#keys">SDK keys</a>
     <a href="#releases">Releases</a>
     <a href="#publish">Publish</a>
     <a href="#stats">Stats</a>
@@ -22,6 +25,8 @@
   </nav>
 </header>
 <main>
+  <div id="toast" role="alert" aria-live="assertive" hidden></div>
+
   <section id="login-section" aria-label="Login">
     <h2>Superuser login</h2>
     <form id="login-form">
@@ -33,7 +38,16 @@
   </section>
 
   <section id="admin-section" hidden>
-    <label>Env slug <input id="env-input" type="text" value="dev" spellcheck="false"></label>
+    <div id="scope-bar" aria-label="Project and environment scope">
+      <label>Project
+        <select id="project-select" aria-label="Project"></select>
+      </label>
+      <label>Environment
+        <select id="env-select" aria-label="Environment"></select>
+      </label>
+      <button id="refresh-scope" type="button">Reload scope</button>
+    </div>
+    <p id="scope-hint" role="status"></p>
 
     <h2 id="flags">Flags</h2>
     <label>Group filter
@@ -42,10 +56,83 @@
       </select>
     </label>
     <button id="refresh-flags" type="button">Refresh flags</button>
+    <div class="table-wrap">
     <table id="flag-table" aria-label="Flags">
       <thead><tr><th>Key</th><th>Type</th><th>Group</th><th>Default</th><th></th></tr></thead>
       <tbody id="flag-tbody"><tr><td colspan="5">Not loaded.</td></tr></tbody>
     </table>
+    </div>
+
+    <h3>Flag create / edit</h3>
+    <form id="flag-form" aria-label="Flag create or edit">
+      <input id="flag-id" type="hidden" value="">
+      <label>Key <input id="flag-key" type="text" required pattern="[A-Za-z_][A-Za-z0-9_]*" maxlength="128" spellcheck="false" placeholder="launch_flag"></label>
+      <label>Type
+        <select id="flag-type">
+          <option value="bool">bool</option>
+          <option value="number">number</option>
+          <option value="string">string</option>
+          <option value="json">json</option>
+        </select>
+      </label>
+      <label>Group id (optional) <input id="flag-group" type="text" spellcheck="false" placeholder="group id"></label>
+      <label>defaultValue (JSON) <input id="flag-default" type="text" value="false" spellcheck="false"></label>
+      <button type="submit" id="flag-submit">Save flag</button>
+      <button type="button" id="flag-reset">Clear</button>
+    </form>
+    <p id="flag-result" role="status"></p>
+
+    <h2 id="rules">Rules</h2>
+    <label>Flag
+      <select id="rule-flag-select" aria-label="Rule flag"></select>
+    </label>
+    <button id="refresh-rules" type="button">Refresh rules</button>
+    <ul id="rule-list" aria-label="Rules"><li>Not loaded.</li></ul>
+    <h3>Rule create</h3>
+    <form id="rule-form" aria-label="Rule create">
+      <label>Priority <input id="rule-priority" type="number" value="0" required></label>
+      <label>Condition (JSON) <input id="rule-condition" type="text" value='{"field":"platform","op":"==","value":"ios"}' spellcheck="false" size="40"></label>
+      <label>Value (JSON) <input id="rule-value" type="text" value="true" spellcheck="false"></label>
+      <button type="submit">Create rule</button>
+    </form>
+    <p id="rule-result" role="status"></p>
+
+    <h2 id="experiments">Experiments</h2>
+    <button id="refresh-experiments" type="button">Refresh experiments</button>
+    <ul id="experiment-list" aria-label="Experiments"><li>Not loaded.</li></ul>
+    <h3>Experiment create</h3>
+    <form id="experiment-form" aria-label="Experiment create">
+      <label>Name <input id="exp-name" type="text" required spellcheck="false"></label>
+      <label>Flag
+        <select id="exp-flag-select" aria-label="Experiment flag"></select>
+      </label>
+      <label>Seed <input id="exp-seed" type="text" required spellcheck="false" placeholder="exp-seed-1"></label>
+      <label>Variants (JSON) <input id="exp-variants" type="text" value='[{"name":"control","weightBps":5000},{"name":"treatment","weightBps":5000}]' spellcheck="false" size="48"></label>
+      <label>Status
+        <select id="exp-status">
+          <option value="draft">draft</option>
+          <option value="running">running</option>
+          <option value="stopped">stopped</option>
+        </select>
+      </label>
+      <button type="submit">Create experiment</button>
+    </form>
+    <p id="experiment-result" role="status"></p>
+
+    <h2 id="keys">SDK keys</h2>
+    <button id="refresh-keys" type="button">Refresh keys</button>
+    <ul id="key-list" aria-label="SDK keys"><li>Not loaded.</li></ul>
+    <h3>SDK key create</h3>
+    <form id="key-form" aria-label="SDK key create">
+      <label>rateLimit (req/60s) <input id="key-ratelimit" type="number" min="1" value="60"></label>
+      <button type="submit">Create key for selected env</button>
+    </form>
+    <p id="key-result" role="status"></p>
+    <div id="key-once" hidden>
+      <p><strong>New key (shown once — copy now):</strong></p>
+      <code id="key-once-value"></code>
+      <button id="key-copy" type="button">Copy</button>
+    </div>
 
     <h2 id="releases">Releases</h2>
     <button id="refresh-releases" type="button">Refresh releases</button>

@@ -11,6 +11,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/plugins/migratecmd"
 
+	"confignest/envresolve"
 	"confignest/fetch"
 	"confignest/ingest"
 	_ "confignest/migrations"
@@ -89,6 +90,46 @@ func registerConfignestHooks(app core.App) {
 	})
 	app.OnRecordUpdate("flags").BindFunc(func(e *core.RecordEvent) error {
 		if err := checkFlagKey(e.Record.GetString("key")); err != nil {
+			return err
+		}
+		return e.Next()
+	})
+
+	// Environment slugs are unique per project (composite uniqueness on
+	// (project, slug): two projects may each own "dev", but one project
+	// may not own it twice). Enforced in hooks — not a DB unique index —
+	// so every write path is covered (API, dashboard, server-side saves;
+	// superusers bypass rules but hooks still fire) and pre-existing
+	// duplicate rows never break migration. O(n) scan over environments
+	// is fine at ConfigNest scale (tens of rows).
+	checkEnvSlug := func(app core.App, rec *core.Record) error {
+		recs, err := app.FindAllRecords("environments")
+		if err != nil {
+			return err
+		}
+		rows := make([]envresolve.EnvRow, 0, len(recs))
+		for _, r := range recs {
+			rows = append(rows, envresolve.EnvRow{
+				ID:      r.Id,
+				Slug:    r.GetString("slug"),
+				Project: r.GetString("project"),
+			})
+		}
+		if envresolve.SlugTaken(rows, rec.GetString("project"), rec.GetString("slug"), rec.Id) {
+			// ApiError (not a plain error) so the data-API 400 carries
+			// the message verbatim instead of "Failed to create record."
+			return apis.NewBadRequestError("environment slug already exists for this project", nil)
+		}
+		return nil
+	}
+	app.OnRecordCreate("environments").BindFunc(func(e *core.RecordEvent) error {
+		if err := checkEnvSlug(e.App, e.Record); err != nil {
+			return err
+		}
+		return e.Next()
+	})
+	app.OnRecordUpdate("environments").BindFunc(func(e *core.RecordEvent) error {
+		if err := checkEnvSlug(e.App, e.Record); err != nil {
 			return err
 		}
 		return e.Next()

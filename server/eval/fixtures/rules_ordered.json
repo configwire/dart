@@ -1,0 +1,1 @@
+[{"conditions":[{"field":"platform","op":"==","value":"android"}],"id":"r1","value":"first"},{"conditions":[{"field":"custom.tier","op":"==","value":"pro"}],"id":"r2","value":"second"},{"conditions":[{"field":"locale","op":"==","value":"en-US"}],"id":"r3","value":"third"}]

@@ -1,0 +1,22 @@
+{
+  "_comment": "T17 hardcoded expectations for fetch platform=ios appVersion=2.1.0. Variant arm asserted as membership in {control,treatment} + value-consistency + stickiness (see e2e.sh), never derived dynamically.",
+  "stage2_fetch": {
+    "welcome_text": "ios-hello",
+    "max_items": 20,
+    "home_config": { "a": 1 },
+    "exp_bool_values_by_variant": { "control": false, "treatment": true }
+  },
+  "stage3_stats": {
+    "flag": "exp_bool",
+    "fetches": 1,
+    "exposures": 3,
+    "perVariant": { "control": 2, "treatment": 1 }
+  },
+  "stage4_fetch": {
+    "version": 2,
+    "home_config": { "a": 2 },
+    "welcome_text": "ios-hello",
+    "max_items": 20
+  },
+  "stage5_rollback": { "version": 3, "home_config": { "a": 1 } }
+}

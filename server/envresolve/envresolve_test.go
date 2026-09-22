@@ -94,3 +94,31 @@ func TestPickIndexUnknownQualifierIsNotFound(t *testing.T) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
+
+func TestMatchFlagScopesToProject(t *testing.T) {
+	rows := []FlagRow{
+		{ID: "flagA", Key: "launch", Project: "projA"},
+		{ID: "flagB", Key: "launch", Project: "projB"},
+	}
+	id, ok := MatchFlag(rows, "launch", "projB")
+	if !ok || id != "flagB" {
+		t.Fatalf("expected flagB, got %q, ok=%v", id, ok)
+	}
+	id, ok = MatchFlag(rows, "launch", "projA")
+	if !ok || id != "flagA" {
+		t.Fatalf("expected flagA, got %q, ok=%v", id, ok)
+	}
+}
+
+func TestMatchFlagUnknownKeyOrProject(t *testing.T) {
+	rows := []FlagRow{{ID: "flagA", Key: "launch", Project: "projA"}}
+	if _, ok := MatchFlag(rows, "missing", "projA"); ok {
+		t.Fatal("expected unknown key to miss")
+	}
+	if _, ok := MatchFlag(rows, "launch", "projZ"); ok {
+		t.Fatal("expected foreign project to miss")
+	}
+	if _, ok := MatchFlag(rows, "", "projA"); ok {
+		t.Fatal("expected empty key to miss")
+	}
+}

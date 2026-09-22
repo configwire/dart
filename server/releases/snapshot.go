@@ -9,12 +9,13 @@
 //	    (env.project relation). flags sorted by key, rules by priority
 //	    ascending so the canonical bytes (and therefore the etag) are
 //	    deterministic.
-//	  - experiments are included as-is: every experiments row in the DB is
-//	    dumped with its stored fields (no per-env transformation). The
-//	    migration gives experiments no env/project field, so no env
-//	    filtering is possible; experiment.flag is the linked flag's KEY
-//	    ("" when the relation is unset/unresolvable), experiment.id is the
-//	    record id.
+//	  - experiments are scoped to the publish target env's project via
+//	    their linked flag: rows targeting a flag of another project are
+//	    EXCLUDED (no cross-project leakage into snapshots, and therefore
+//	    into fetch overlays, stats, or ingest). Untargeted rows (flag
+//	    relation unset or dangling) are included with flag "" (legacy
+//	    shape). experiment.flag is the linked flag's KEY ("" when the
+//	    relation is unset/unresolvable), experiment.id is the record id.
 //	  - flag.group is the linked groups record id ("" when unset).
 //
 // ETAG RULE (T10/T13/T17 contract):
@@ -181,9 +182,11 @@ func jsonAny(v any) any {
 }
 
 // BuildSnapshot assembles the FROZEN snapshot for env from the live
-// collections (server-side only — never from client input). Flags and
-// rules are scoped to env's project; experiments are included as-is.
-// Returned flags are sorted by key, rules by priority ascending.
+// collections (server-side only — never from client input). Flags,
+// rules, and experiments are scoped to env's project; experiments
+// targeting another project's flags are excluded (no cross-project
+// leakage). Returned flags are sorted by key, rules by priority
+// ascending, experiments by id.
 func BuildSnapshot(app core.App, env *core.Record) (Snapshot, error) {
 	snap := Snapshot{Flags: []SnapshotFlag{}, Experiments: []SnapshotExperiment{}}
 	projectID := env.GetString("project")
@@ -244,14 +247,14 @@ func BuildSnapshot(app core.App, env *core.Record) (Snapshot, error) {
 	if err != nil {
 		return snap, err
 	}
+	flagProjects := make(map[string]string, len(flagRecs))
+	for _, fr := range flagRecs {
+		flagProjects[fr.Id] = fr.GetString("project")
+	}
 	for _, er := range expRecs {
-		flagKey := ""
-		if fid := er.GetString("flag"); fid != "" {
-			if k, ok := flagKeys[fid]; ok {
-				flagKey = k
-			} else if fr, ferr := app.FindRecordById("flags", fid); ferr == nil {
-				flagKey = fr.GetString("key")
-			}
+		flagKey, include := ResolveExperimentFlag(projectID, er.GetString("flag"), flagProjects, flagKeys)
+		if !include {
+			continue
 		}
 		snap.Experiments = append(snap.Experiments, SnapshotExperiment{
 			ID:       er.Id,
@@ -266,6 +269,28 @@ func BuildSnapshot(app core.App, env *core.Record) (Snapshot, error) {
 	})
 
 	return snap, nil
+}
+
+// ResolveExperimentFlag decides whether one experiment row belongs in
+// the snapshot for projectID, purely (no I/O) so scoping is
+// unit-testable. projects/keys index every flag by record id (built
+// once per BuildSnapshot from the already-loaded flags scan, so no
+// extra queries). Untargeted rows (flagID "") or dangling relations
+// are included with key "" (legacy shape); rows whose flag lives in
+// another project are excluded — that exclusion is what keeps one
+// project's experiments out of another project's snapshots.
+func ResolveExperimentFlag(projectID, flagID string, projects, keys map[string]string) (key string, include bool) {
+	if flagID == "" {
+		return "", true
+	}
+	p, ok := projects[flagID]
+	if !ok {
+		return "", true
+	}
+	if p != projectID {
+		return "", false
+	}
+	return keys[flagID], true
 }
 
 // coerceToType mirrors eval's rule-value coercion (eval.coerce is private):

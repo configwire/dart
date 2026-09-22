@@ -100,8 +100,9 @@ Success `200`:
 ```
 
 Snapshot schema (server-side build only, never client-supplied;
-flags/rules scoped to the env's project, sorted by key/priority;
-experiments included as-is, all rows):
+flags/rules/experiments scoped to the env's project — experiments
+targeting another project's flags are excluded, never leaked;
+sorted by key/priority/id):
 
 ```json
 {"flags": [{"key": "launch_flag", "type": "bool", "default": false, "group": "", "rules": [{"priority": 0, "condition": {"field": "platform", "op": "==", "value": "ios"}, "value": true}]}], "experiments": [{"id": "abc123", "flag": "launch_flag", "seed": "exp-seed-1", "variants": [{"name": "control"}, {"name": "treatment"}], "status": "running"}]}
@@ -132,9 +133,9 @@ flag type, bad rule condition shape (unknown field/op, missing value
 key, bare `custom`), bad experiment weights (must sum to exactly 10000
 bps). Ref: `server/releases/snapshot.go:396-436`.
 
-## 3. Rollback — `POST /api/v1/admin/releases/{version}/rollback`
+## 3. Rollback — `POST /api/v1/admin/releases/{version}/rollback` and `POST /api/v1/admin/env/{env}/releases/{version}/rollback`
 
-Ref: `server/releases/handler.go:182-257`.
+Ref: `server/releases/handler.go` (legacy `postRollback`, env-scoped `postRollbackEnv`).
 
 Request (note optional; empty body means no note; only malformed
 non-empty bodies are `400`):
@@ -150,9 +151,18 @@ Success `200` (source snapshot bytes copied verbatim into a new row,
 {"version": 3, "etag": "1f75363af9defec2"}
 ```
 
-Unknown version then `404`. Version shared by 2+ envs then `400`
-(`ambiguous version`). Non-integer version then `400`. Releases rows
-are immutable (updates denied on every path). Ref: `:200-221`.
+- Legacy global route `POST /api/v1/admin/releases/{version}/rollback`:
+  unknown version then `404`; version shared by 2+ envs then `400`
+  (`ambiguous version`) — ambiguous only when truly shared, otherwise
+  behavior is unchanged.
+- Env-scoped route
+  `POST /api/v1/admin/env/{env}/releases/{version}/rollback` (with
+  optional `?project=<projectId>` for shared slugs): selects the
+  source row by (env, version), so duplicate versions across envs
+  roll back deterministically; a version absent in this env then
+  `404`.
+- Non-integer version then `400`. Releases rows are immutable
+  (updates denied on every path).
 
 ## 4. Events ingest — `POST /api/v1/env/{env}/events`
 
@@ -172,6 +182,8 @@ Request:
 - `kind` must be `fetch` or `exposure`.
 - `flag`, `variant`, `userHash`, `ts` are all optional. Unknown flag
   keys are stored with the flag relation unset (variant preserved).
+  Flag keys resolve scoped to the event env's project (key + project,
+  never global key): the same key under another project never matches.
 - `ts` accepts RFC3339 string, unix-seconds number, or absent/null
   (server time). Anything else then `400`.
 - Raw `userId`/`ip` keys are strictly rejected (presence, not value,
@@ -226,8 +238,11 @@ Success `200`:
   now-UTC minus days; rows with ts before cutoff or zero ts excluded.
   Ref: `:49-65,98-119`.
 - Unknown flag keys (including path-ish `../x`) then zeros `200`
-  with version populated, never `404`. Events with unset flag
-  relation drop out under any `?flag=` filter, count when absent.
+  with version populated, never `404`. `?flag=` resolves scoped to
+  the stats env's project (key + project, never global key), so the
+  same key under another project never pollutes counts. Events with
+  unset flag relation drop out under any `?flag=` filter, count when
+  absent.
 - Unknown env slug then `404`. Optional `?project=<projectId>`
   disambiguates a slug shared by several projects (`400` ambiguous
   without it). Ref: `:144-155`.

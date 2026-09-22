@@ -2,6 +2,7 @@ package releases
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -252,5 +253,74 @@ func TestValidateSnapshotRejectsBadConditions(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "invalid condition") {
 			t.Errorf("%s: must be rejected with 'invalid condition', got %v", name, err)
 		}
+	}
+}
+
+func TestResolveExperimentFlagSameProject(t *testing.T) {
+	projects := map[string]string{"flagA": "projA", "flagB": "projB"}
+	keys := map[string]string{"flagA": "launch", "flagB": "launch"}
+	key, include := ResolveExperimentFlag("projA", "flagA", projects, keys)
+	if !include || key != "launch" {
+		t.Fatalf("expected (launch, true), got (%q, %v)", key, include)
+	}
+}
+
+func TestResolveExperimentFlagExcludesForeignProject(t *testing.T) {
+	projects := map[string]string{"flagA": "projA", "flagB": "projB"}
+	keys := map[string]string{"flagA": "launch", "flagB": "launch"}
+	if _, include := ResolveExperimentFlag("projA", "flagB", projects, keys); include {
+		t.Fatal("expected experiment targeting another project's flag to be excluded")
+	}
+}
+
+func TestResolveExperimentFlagUntargetedAndDangling(t *testing.T) {
+	projects := map[string]string{"flagA": "projA"}
+	keys := map[string]string{"flagA": "launch"}
+	if key, include := ResolveExperimentFlag("projA", "", projects, keys); !include || key != "" {
+		t.Fatalf("expected (\"\", true) for untargeted, got (%q, %v)", key, include)
+	}
+	if key, include := ResolveExperimentFlag("projA", "ghost", projects, keys); !include || key != "" {
+		t.Fatalf("expected (\"\", true) for dangling relation, got (%q, %v)", key, include)
+	}
+}
+
+func TestRollbackPickGlobalUnique(t *testing.T) {
+	rows := []ReleaseRow{{EnvID: "envA", Version: 1}, {EnvID: "envA", Version: 2}}
+	idx, err := RollbackPick(rows, 1, "")
+	if err != nil || idx != 0 {
+		t.Fatalf("expected index 0, got %d, err %v", idx, err)
+	}
+}
+
+func TestRollbackPickGlobalAmbiguousOnlyWhenShared(t *testing.T) {
+	rows := []ReleaseRow{{EnvID: "envA", Version: 1}, {EnvID: "envB", Version: 1}}
+	if _, err := RollbackPick(rows, 1, ""); !errors.Is(err, ErrReleaseAmbiguous) {
+		t.Fatalf("expected ErrReleaseAmbiguous, got %v", err)
+	}
+}
+
+func TestRollbackPickGlobalUnknown(t *testing.T) {
+	rows := []ReleaseRow{{EnvID: "envA", Version: 1}}
+	if _, err := RollbackPick(rows, 9, ""); !errors.Is(err, ErrReleaseNotFound) {
+		t.Fatalf("expected ErrReleaseNotFound, got %v", err)
+	}
+}
+
+func TestRollbackPickEnvScopedWithDuplicateVersions(t *testing.T) {
+	rows := []ReleaseRow{{EnvID: "envA", Version: 1}, {EnvID: "envB", Version: 1}}
+	idx, err := RollbackPick(rows, 1, "envB")
+	if err != nil || idx != 1 {
+		t.Fatalf("expected index 1, got %d, err %v", idx, err)
+	}
+	idx, err = RollbackPick(rows, 1, "envA")
+	if err != nil || idx != 0 {
+		t.Fatalf("expected index 0, got %d, err %v", idx, err)
+	}
+}
+
+func TestRollbackPickEnvScopedMissingVersion(t *testing.T) {
+	rows := []ReleaseRow{{EnvID: "envA", Version: 1}}
+	if _, err := RollbackPick(rows, 1, "envB"); !errors.Is(err, ErrReleaseNotFound) {
+		t.Fatalf("expected ErrReleaseNotFound for version absent in this env, got %v", err)
 	}
 }

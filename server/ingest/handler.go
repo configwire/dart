@@ -136,6 +136,11 @@ func postEvents(re *core.RequestEvent) error {
 	}
 	now := time.Now().UTC()
 	flagIDs := make(map[string]string, len(events))
+	// Flag resolution is scoped to the env's project once per request
+	// (key + project, never global key): the same key under another
+	// project never matches, so events can't attach to a foreign flag.
+	flagRows, _ := envresolve.FlagRows(re.App)
+	projectID := env.GetString("project")
 	stored := make([]StoredEvent, 0, len(events))
 	for _, ev := range events {
 		ts := ev.Ts
@@ -151,9 +156,7 @@ func postEvents(re *core.RequestEvent) error {
 				// with the relation unset (variant/kind/userHash preserved)
 				// rather than rejecting the batch — the schema has no
 				// flagKey text field and migrations are owned elsewhere.
-				if fr, ferr := re.App.FindFirstRecordByFilter("flags", "key = {:k}", map[string]any{"k": ev.Flag}); ferr == nil {
-					flagID = fr.Id
-				}
+				flagID, _ = envresolve.MatchFlag(flagRows, ev.Flag, projectID)
 				flagIDs[ev.Flag] = flagID
 			}
 		}

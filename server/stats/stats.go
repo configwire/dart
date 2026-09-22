@@ -145,7 +145,8 @@ func getStats(re *core.RequestEvent) error {
 	}
 	cutoff := time.Now().UTC().Add(-time.Duration(days) * 24 * time.Hour)
 
-	// Flag filter by relation -> key resolution. Unknown flag keys yield
+	// Flag filter by relation -> key resolution SCOPED to the env's
+	// project (key + project, never global key). Unknown flag keys yield
 	// zeros with 200 (not 404): there is simply nothing recorded under
 	// that key. Events whose flag relation is unset never match a filter.
 	flagKey := re.Request.URL.Query().Get("flag")
@@ -153,8 +154,8 @@ func getStats(re *core.RequestEvent) error {
 	filterByFlag := false
 	if flagKey != "" {
 		filterByFlag = true
-		if fr, ferr := re.App.FindFirstRecordByFilter("flags", "key = {:k}", map[string]any{"k": flagKey}); ferr == nil {
-			flagID = fr.Id
+		if rows, rerr := envresolve.FlagRows(re.App); rerr == nil {
+			flagID, _ = envresolve.MatchFlag(rows, flagKey, env.GetString("project"))
 		}
 	}
 

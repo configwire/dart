@@ -1,6 +1,9 @@
 package envresolve
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestSlugTakenDeniesDuplicateInSameProject(t *testing.T) {
 	rows := []EnvRow{
@@ -49,5 +52,45 @@ func TestSlugTakenIgnoresEmptyProjectOrSlug(t *testing.T) {
 	}
 	if SlugTaken(rows, "projA", "", "") {
 		t.Fatal("expected empty slug to never count as taken")
+	}
+}
+
+func TestPickIndexUnambiguous(t *testing.T) {
+	idx, err := PickIndex("dev", []string{"projA"}, "")
+	if err != nil || idx != 0 {
+		t.Fatalf("expected index 0, got %d, err %v", idx, err)
+	}
+}
+
+func TestPickIndexEmptyIsNotFound(t *testing.T) {
+	if _, err := PickIndex("dev", nil, ""); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestPickIndexAmbiguousWithoutQualifier(t *testing.T) {
+	_, err := PickIndex("dev", []string{"projA", "projB"}, "")
+	var amb AmbiguousError
+	if !errors.As(err, &amb) {
+		t.Fatalf("expected AmbiguousError, got %v", err)
+	}
+	if amb.Slug != "dev" || amb.Count != 2 {
+		t.Fatalf("expected slug dev count 2, got %+v", amb)
+	}
+	if got := amb.Error(); got == "" {
+		t.Fatal("expected a non-empty collision message")
+	}
+}
+
+func TestPickIndexQualifierSelectsProject(t *testing.T) {
+	idx, err := PickIndex("dev", []string{"projA", "projB"}, "projB")
+	if err != nil || idx != 1 {
+		t.Fatalf("expected index 1, got %d, err %v", idx, err)
+	}
+}
+
+func TestPickIndexUnknownQualifierIsNotFound(t *testing.T) {
+	if _, err := PickIndex("dev", []string{"projA", "projB"}, "projZ"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }

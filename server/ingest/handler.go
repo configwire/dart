@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"confignest/envresolve"
+
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -106,7 +108,8 @@ func EnableWAL(app core.App) {
 }
 
 // postEvents handles POST /api/v1/env/:env/events.
-// Order: 401 (key) → 404 (env/scope) → 429 (rate) → 400/413 (body) → 202.
+// Order: 401 (key) → 404 (env) / 400 (ambiguous slug) / 401 (scope) →
+// 429 (rate) → 400/413 (body) → 202.
 // Uses re.App for every request-scoped lookup (never a captured app).
 func postEvents(re *core.RequestEvent) error {
 	key, err := RequireSDKKey(re)
@@ -114,12 +117,11 @@ func postEvents(re *core.RequestEvent) error {
 		return err
 	}
 	slug := re.Request.PathValue("env")
-	env, err := re.App.FindFirstRecordByFilter("environments", "slug = {:slug}", map[string]any{"slug": slug})
+	// Deterministic: the key's env IS the env, so a slug shared by
+	// several projects can never misroute here.
+	env, err := envresolve.ResolveForKey(re.App, slug, key.GetString("env"))
 	if err != nil {
-		return re.NotFoundError("Unknown env.", nil)
-	}
-	if keyEnv := key.GetString("env"); keyEnv != "" && keyEnv != env.Id {
-		return re.UnauthorizedError("SDK key is not authorized for this env.", nil)
+		return envresolve.ToRequestError(re, err)
 	}
 	if !module.limiter.Allow(key.GetString("hash"), RateLimitFor(key)) {
 		return re.JSON(http.StatusTooManyRequests, map[string]any{"message": "Rate limit exceeded.", "status": 429})

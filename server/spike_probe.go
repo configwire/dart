@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"confignest/envresolve"
 	"confignest/ingest"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -37,7 +38,8 @@ func spikeCheckKey(re *core.RequestEvent) error {
 }
 
 // spikeStream is GET /api/v1/env/:env/stream — long-lived SSE hold.
-// Order (same as fetch/ingest): 401 (key) -> 404 (env) -> 401 (env scope).
+// Order (same as fetch/ingest): 401 (key) -> 404 (env) / 400 (ambiguous
+// slug) -> 401 (env scope).
 // After auth + SSE headers, sends `: ping` keepalive comments every 20s
 // until the client disconnects (request context done) or a 10min cap.
 // Emits NO canned config_update event (avoids stale-event churn; freshness
@@ -51,12 +53,10 @@ func spikeStream(re *core.RequestEvent) error {
 		return err
 	}
 	slug := re.Request.PathValue("env")
-	env, err := re.App.FindFirstRecordByFilter("environments", "slug = {:slug}", map[string]any{"slug": slug})
-	if err != nil {
-		return re.NotFoundError("Unknown env.", nil)
-	}
-	if keyEnv := key.GetString("env"); keyEnv != "" && keyEnv != env.Id {
-		return re.UnauthorizedError("SDK key is not authorized for this env.", nil)
+	// Deterministic: the key's env IS the env, so a slug shared by
+	// several projects can never misroute here.
+	if _, err := envresolve.ResolveForKey(re.App, slug, key.GetString("env")); err != nil {
+		return envresolve.ToRequestError(re, err)
 	}
 	re.Response.Header().Set("Content-Type", "text/event-stream")
 	re.Response.Header().Set("Cache-Control", "no-store")

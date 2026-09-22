@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"confignest/envresolve"
 	"confignest/releases"
 	"confignest/security"
 
@@ -125,14 +126,17 @@ func Register(se *core.ServeEvent) {
 
 // getStats handles GET /api/v1/admin/env/:env/stats.
 // Order: 401 (superuser, via middleware) -> 404 (unknown env slug) ->
-// 400 (malformed since) -> 200 (counts, or zeros for unknown flags).
+// 400 (ambiguous slug without ?project=, or malformed since) -> 200
+// (counts, or zeros for unknown flags).
 // Uses re.App for every request-scoped lookup (never a captured app).
 func getStats(re *core.RequestEvent) error {
 	security.SetHeaders(re)
 	slug := re.Request.PathValue("env")
-	env, err := re.App.FindFirstRecordByFilter("environments", "slug = {:slug}", map[string]any{"slug": slug})
+	// ?project= disambiguates a slug shared by several projects;
+	// unambiguous slugs keep working without it.
+	env, err := envresolve.Resolve(re.App, slug, re.Request.URL.Query().Get("project"))
 	if err != nil {
-		return re.NotFoundError("Unknown env.", nil)
+		return envresolve.ToRequestError(re, err)
 	}
 
 	days, perr := ParseSince(re.Request.URL.Query().Get("since"))

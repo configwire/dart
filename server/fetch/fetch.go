@@ -6,8 +6,10 @@
 //   - Auth: X-ConfigNest-Key via ingest.RequireSDKKey reuse. Unknown, missing,
 //     revoked, or env-mismatched keys -> 401. SDK keys and userIDs are never
 //     logged (hashes only); evaluation cost is O(flags + rules) per request.
-//   - Env: unknown slug -> 404. Order is 401 (key) -> 404 (env) -> 401
-//     (key not scoped to this env) -> 304/200.
+//   - Env: resolved deterministically from the key's env (the key's env
+//     IS the env, so a slug shared by several projects can never
+//     misroute). Unknown slug -> 404. Order is 401 (key) -> 404/400
+//     (env) -> 401 (key not scoped to this env) -> 304/200.
 //   - Empty release: an env with NO release row yet -> 200 with
 //     {"version":0,"etag":"none","values":{},"variants":{},"fetchAt":...}.
 //     Never 404, so fresh envs boot clean. values is EMPTY (not flag
@@ -58,6 +60,7 @@ import (
 	"strings"
 	"time"
 
+	"confignest/envresolve"
 	"confignest/eval"
 	"confignest/ingest"
 	"confignest/releases"
@@ -291,12 +294,11 @@ func getConfig(re *core.RequestEvent) error {
 		return err
 	}
 	slug := re.Request.PathValue("env")
-	env, err := re.App.FindFirstRecordByFilter("environments", "slug = {:slug}", map[string]any{"slug": slug})
+	// Deterministic: the key's env IS the env, so a slug shared by
+	// several projects can never misroute here.
+	env, err := envresolve.ResolveForKey(re.App, slug, key.GetString("env"))
 	if err != nil {
-		return re.NotFoundError("Unknown env.", nil)
-	}
-	if keyEnv := key.GetString("env"); keyEnv != "" && keyEnv != env.Id {
-		return re.UnauthorizedError("SDK key is not authorized for this env.", nil)
+		return envresolve.ToRequestError(re, err)
 	}
 
 	ctx, cerr := BuildContext(re.Request.URL.Query())

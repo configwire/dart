@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"sync"
 
+	"confignest/envresolve"
 	"confignest/security"
 
 	"github.com/pocketbase/pocketbase/apis"
@@ -77,7 +78,8 @@ func decodeBody(re *core.RequestEvent, dst any) error {
 
 // postPublish handles POST /api/v1/admin/env/:env/publish.
 // Order: 401 (superuser, via middleware) -> 404 (unknown env slug) ->
-// 409 (stale baseVersion, NO write) -> 400 (validation) -> 200.
+// 400 (ambiguous slug without ?project=) -> 409 (stale baseVersion, NO
+// write) -> 400 (validation) -> 200.
 // The snapshot is built SERVER-SIDE from the live collections; the
 // client only sends {note, baseVersion}.
 func postPublish(re *core.RequestEvent) error {
@@ -87,9 +89,11 @@ func postPublish(re *core.RequestEvent) error {
 		return err
 	}
 	slug := re.Request.PathValue("env")
-	env, err := re.App.FindFirstRecordByFilter("environments", "slug = {:slug}", map[string]any{"slug": slug})
+	// ?project= disambiguates a slug shared by several projects;
+	// unambiguous slugs keep working without it.
+	env, err := envresolve.Resolve(re.App, slug, re.Request.URL.Query().Get("project"))
 	if err != nil {
-		return re.NotFoundError("Unknown env.", nil)
+		return envresolve.ToRequestError(re, err)
 	}
 
 	writeMu.Lock()

@@ -20,6 +20,14 @@ Auth/env order: 401 (key) then 404 (unknown env slug) then 401
 (key not scoped to this env) then 400/414 (attrs) then 200/304.
 Ref: `server/fetch/fetch.go:289-308`.
 
+Multi-project slugs: the env is resolved deterministically from the
+key's env record (the key's env IS the env), so a slug shared by
+several projects can never misroute on SDK paths. Admin paths take an
+optional `?project=<projectId>` qualifier; a slug shared by 2+
+projects without it then `400` (ambiguous, names the collision),
+while unambiguous slugs keep working without it. Ref:
+`server/envresolve/resolve.go`.
+
 ### 1a. `200` config
 
 ```json
@@ -71,6 +79,9 @@ through to defaults with `200`, never `400`.
 ## 2. Publish — `POST /api/v1/admin/env/{env}/publish`
 
 Ref: `server/releases/handler.go:32-35` (route + superuser-only), `:83-149` (handler).
+Optional `?project=<projectId>` disambiguates a slug shared by
+several projects (`400` ambiguous without it); unambiguous slugs keep
+working without it. Ref: `server/envresolve/resolve.go`.
 
 Request (note optional, baseVersion required, must equal the env's
 current max, 0 on first publish):
@@ -147,8 +158,9 @@ are immutable (updates denied on every path). Ref: `:200-221`.
 
 Ref: `server/ingest/handler.go:111-171` (order), `server/ingest/ingest.go:101-130` (body).
 
-Order: 401 (key) then 404 (unknown env slug, incl. env-scope mismatch
-as 401) then 429 (rate) then 400/413 (body) then 202.
+Order: 401 (key) then 404 (unknown env slug) / 400 (ambiguous slug,
+key-less callers only) / 401 (env-scope mismatch) then 429 (rate)
+then 400/413 (body) then 202.
 Ref: `server/ingest/handler.go:108-109`.
 
 Request:
@@ -216,7 +228,9 @@ Success `200`:
 - Unknown flag keys (including path-ish `../x`) then zeros `200`
   with version populated, never `404`. Events with unset flag
   relation drop out under any `?flag=` filter, count when absent.
-- Unknown env slug then `404`. Ref: `:144-155`.
+- Unknown env slug then `404`. Optional `?project=<projectId>`
+  disambiguates a slug shared by several projects (`400` ambiguous
+  without it). Ref: `:144-155`.
 - Aggregation is an in-Go O(n) scan over `events` (v1-appropriate;
   indexed replacement is the documented follow-up past ~100k rows).
   Ref: `:16-21,176-194`.
@@ -226,7 +240,8 @@ Success `200`:
 Ref: `server/spike_probe.go:48-89`.
 
 Real-key auth via `ingest.RequireSDKKey` plus env-scope check, same
-order as fetch/ingest: 401 (key) then 404 (unknown env slug) then 401
+order as fetch/ingest: 401 (key) then 404 (unknown env slug) / 400
+(ambiguous slug, key-less callers only) then 401
 (key env mismatch). Ref: `:49-60`.
 
 After auth the handler holds SSE long-lived:
@@ -271,7 +286,7 @@ ticker purges with `cutoff = now - 30d`. Ref: `:284-296`.
 | 202 | events accepted | `{"accepted": N, "status": 202}` | ingest handler `:170` |
 | 204 | fetch CORS preflight (`OPTIONS`) | empty | fetch `:93-101` |
 | 304 | fetch not modified (exact etag match) | empty | fetch `:326-328` |
-| 400 | bad publish/rollback/ingest/stats/purge input | PocketBase errors: `{"data": {}, "message": "...", "status": 400}`; ingest custom: `{"message": "...", "status": 400}` | releases `:70-76,193-195`, ingest `:173-175`, stats `:140`, purge `:312` |
+| 400 | bad publish/rollback/ingest/stats/purge input; ambiguous env slug without `?project=` | PocketBase errors: `{"data": {}, "message": "...", "status": 400}`; ingest custom: `{"message": "...", "status": 400}` | releases `:70-76,193-195`, ingest `:173-175`, stats `:140`, purge `:312`, envresolve `resolve.go` |
 | 401 | missing/unknown/revoked/env-mismatched SDK key; non-superuser on admin paths | PocketBase shape: `{"data": {}, "message": "Missing or invalid SDK key.", "status": 401}` (SDK paths) | ingest `:213-241`, fetch `:289-300`, spike `:49-60` |
 | 404 | unknown env slug / unknown release version | PocketBase shape: `{"data": {}, "message": "Unknown env.", "status": 404}` | fetch `:294-297`, releases `:220-221` |
 | 409 | stale publish baseVersion (no write) | `{"message": "Stale baseVersion: a newer release exists.", "status": 409, "currentVersion": N}` | releases `:102-108` |

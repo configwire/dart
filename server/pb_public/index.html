@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="ConfigNest admin console — flags, rules, experiments, keys, releases.">
 <title>ConfigNest Admin</title>
 <link rel="stylesheet" href="/styles.css">
 <!-- Pinned vendor copy (htmx 2.0.7). If this file is missing, replace with the
@@ -11,9 +12,13 @@
 <script src="/vendor/htmx.min.js"></script>
 </head>
 <body>
-<header>
-  <h1>ConfigNest Admin</h1>
-  <nav>
+<a class="skip" href="#main">Skip to content</a>
+<aside class="sidebar" aria-label="Primary">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="1" y="1" width="20" height="20" rx="5" fill="#4f7cff"/><path d="M6.5 11.2l3.1 3.1 6-6.6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <span class="brand-text"><strong>ConfigNest</strong><small>Admin console</small></span>
+  </div>
+  <nav aria-label="Modules">
     <a href="#flags">Flags</a>
     <a href="#rules">Rules</a>
     <a href="#experiments">Experiments</a>
@@ -21,138 +26,163 @@
     <a href="#releases">Releases</a>
     <a href="#publish">Publish</a>
     <a href="#stats">Stats</a>
-    <button id="logout-btn" type="button" hidden>Log out</button>
   </nav>
-</header>
-<main>
-  <div id="toast" role="alert" aria-live="assertive" hidden></div>
-
-  <section id="login-section" aria-label="Login">
-    <h2>Superuser login</h2>
-    <form id="login-form">
-      <label>Email <input id="login-email" name="identity" type="email" autocomplete="username" required></label>
-      <label>Password <input id="login-password" name="password" type="password" autocomplete="current-password" required></label>
-      <button type="submit">Log in</button>
-    </form>
-    <p id="login-error" role="alert" hidden></p>
-  </section>
-
-  <section id="admin-section" hidden>
-    <div id="scope-bar" aria-label="Project and environment scope">
-      <label>Project
-        <select id="project-select" aria-label="Project"></select>
-      </label>
-      <label>Environment
-        <select id="env-select" aria-label="Environment"></select>
-      </label>
-      <button id="refresh-scope" type="button">Reload scope</button>
+  <div class="sidebar-foot">
+    <button id="logout-btn" type="button" class="btn ghost" hidden>Log out</button>
+  </div>
+</aside>
+<div class="shell">
+  <header class="topbar">
+    <div class="topbar-title">
+      <h1>ConfigNest Admin</h1>
+      <p>Flags, releases, keys and stats for the selected scope.</p>
     </div>
-    <p id="scope-hint" role="status"></p>
+    <div class="topbar-meta" aria-hidden="true"><span class="dot"></span><span>single-binary · offline</span></div>
+  </header>
+  <main id="main">
+    <div id="toast" role="alert" aria-live="assertive" hidden></div>
 
-    <h2 id="flags">Flags</h2>
-    <label>Group filter
-      <select id="group-filter">
-        <option value="">(all groups)</option>
-      </select>
-    </label>
-    <button id="refresh-flags" type="button">Refresh flags</button>
-    <div class="table-wrap">
-    <table id="flag-table" aria-label="Flags">
-      <thead><tr><th>Key</th><th>Type</th><th>Group</th><th>Default</th><th></th></tr></thead>
-      <tbody id="flag-tbody"><tr><td colspan="5">Not loaded.</td></tr></tbody>
-    </table>
-    </div>
+    <section id="login-section" class="card auth" aria-label="Login">
+      <h2>Superuser login</h2>
+      <p class="muted">Sign in with a superuser account to manage flags and releases.</p>
+      <form id="login-form">
+        <label>Email <input id="login-email" name="identity" type="email" autocomplete="username" required></label>
+        <label>Password <input id="login-password" name="password" type="password" autocomplete="current-password" required></label>
+        <button type="submit" class="btn primary">Log in</button>
+      </form>
+      <p id="login-error" role="alert" hidden></p>
+    </section>
 
-    <h3>Flag create / edit</h3>
-    <form id="flag-form" aria-label="Flag create or edit">
-      <input id="flag-id" type="hidden" value="">
-      <label>Key <input id="flag-key" type="text" required pattern="[A-Za-z_][A-Za-z0-9_]*" maxlength="128" spellcheck="false" placeholder="launch_flag"></label>
-      <label>Type
-        <select id="flag-type">
-          <option value="bool">bool</option>
-          <option value="number">number</option>
-          <option value="string">string</option>
-          <option value="json">json</option>
-        </select>
-      </label>
-      <label>Group id (optional) <input id="flag-group" type="text" spellcheck="false" placeholder="group id"></label>
-      <label>defaultValue (JSON) <input id="flag-default" type="text" value="false" spellcheck="false"></label>
-      <button type="submit" id="flag-submit">Save flag</button>
-      <button type="button" id="flag-reset">Clear</button>
-    </form>
-    <p id="flag-result" role="status"></p>
+    <section id="admin-section" hidden>
+      <div id="scope-bar" class="card scope" aria-label="Project and environment scope">
+        <label>Project
+          <select id="project-select" aria-label="Project"></select>
+        </label>
+        <label>Environment
+          <select id="env-select" aria-label="Environment"></select>
+        </label>
+        <button id="refresh-scope" type="button" class="btn secondary">Reload scope</button>
+      </div>
+      <p id="scope-hint" class="muted" role="status"></p>
 
-    <h2 id="rules">Rules</h2>
-    <label>Flag
-      <select id="rule-flag-select" aria-label="Rule flag"></select>
-    </label>
-    <button id="refresh-rules" type="button">Refresh rules</button>
-    <ul id="rule-list" aria-label="Rules"><li>Not loaded.</li></ul>
-    <h3>Rule create</h3>
-    <form id="rule-form" aria-label="Rule create">
-      <label>Priority <input id="rule-priority" type="number" value="0" required></label>
-      <label>Condition (JSON) <input id="rule-condition" type="text" value='{"field":"platform","op":"==","value":"ios"}' spellcheck="false" size="40"></label>
-      <label>Value (JSON) <input id="rule-value" type="text" value="true" spellcheck="false"></label>
-      <button type="submit">Create rule</button>
-    </form>
-    <p id="rule-result" role="status"></p>
+      <div class="grid">
+      <section class="card" aria-labelledby="flags">
+        <div class="card-head"><h2 id="flags">Flags</h2><button id="refresh-flags" type="button" class="btn ghost">Refresh flags</button></div>
+        <label>Group filter
+          <select id="group-filter">
+            <option value="">(all groups)</option>
+          </select>
+        </label>
+        <div class="table-wrap">
+        <table id="flag-table" aria-label="Flags">
+          <thead><tr><th>Key</th><th>Type</th><th>Group</th><th>Default</th><th></th></tr></thead>
+          <tbody id="flag-tbody"><tr><td colspan="5">Not loaded.</td></tr></tbody>
+        </table>
+        </div>
 
-    <h2 id="experiments">Experiments</h2>
-    <button id="refresh-experiments" type="button">Refresh experiments</button>
-    <ul id="experiment-list" aria-label="Experiments"><li>Not loaded.</li></ul>
-    <h3>Experiment create</h3>
-    <form id="experiment-form" aria-label="Experiment create">
-      <label>Name <input id="exp-name" type="text" required spellcheck="false"></label>
-      <label>Flag
-        <select id="exp-flag-select" aria-label="Experiment flag"></select>
-      </label>
-      <label>Seed <input id="exp-seed" type="text" required spellcheck="false" placeholder="exp-seed-1"></label>
-      <label>Variants (JSON) <input id="exp-variants" type="text" value='[{"name":"control","weightBps":5000},{"name":"treatment","weightBps":5000}]' spellcheck="false" size="48"></label>
-      <label>Status
-        <select id="exp-status">
-          <option value="draft">draft</option>
-          <option value="running">running</option>
-          <option value="stopped">stopped</option>
-        </select>
-      </label>
-      <button type="submit">Create experiment</button>
-    </form>
-    <p id="experiment-result" role="status"></p>
+        <h3>Flag create / edit</h3>
+        <form id="flag-form" aria-label="Flag create or edit">
+          <input id="flag-id" type="hidden" value="">
+          <label>Key <input id="flag-key" type="text" required pattern="[A-Za-z_][A-Za-z0-9_]*" maxlength="128" spellcheck="false" placeholder="launch_flag"></label>
+          <label>Type
+            <select id="flag-type">
+              <option value="bool">bool</option>
+              <option value="number">number</option>
+              <option value="string">string</option>
+              <option value="json">json</option>
+            </select>
+          </label>
+          <label>Group id (optional) <input id="flag-group" type="text" spellcheck="false" placeholder="group id"></label>
+          <label>defaultValue (JSON) <input id="flag-default" type="text" value="false" spellcheck="false"></label>
+          <button type="submit" id="flag-submit" class="btn primary">Save flag</button>
+          <button type="button" id="flag-reset" class="btn ghost">Clear</button>
+        </form>
+        <p id="flag-result" role="status"></p>
+      </section>
 
-    <h2 id="keys">SDK keys</h2>
-    <button id="refresh-keys" type="button">Refresh keys</button>
-    <ul id="key-list" aria-label="SDK keys"><li>Not loaded.</li></ul>
-    <h3>SDK key create</h3>
-    <form id="key-form" aria-label="SDK key create">
-      <label>rateLimit (req/60s) <input id="key-ratelimit" type="number" min="1" value="60"></label>
-      <button type="submit">Create key for selected env</button>
-    </form>
-    <p id="key-result" role="status"></p>
-    <div id="key-once" hidden>
-      <p><strong>New key (shown once — copy now):</strong></p>
-      <code id="key-once-value"></code>
-      <button id="key-copy" type="button">Copy</button>
-    </div>
+      <section class="card" aria-labelledby="rules">
+        <div class="card-head"><h2 id="rules">Rules</h2><button id="refresh-rules" type="button" class="btn ghost">Refresh rules</button></div>
+        <label>Flag
+          <select id="rule-flag-select" aria-label="Rule flag"></select>
+        </label>
+        <ul id="rule-list" aria-label="Rules"><li>Not loaded.</li></ul>
+        <h3>Rule create</h3>
+        <form id="rule-form" aria-label="Rule create">
+          <label>Priority <input id="rule-priority" type="number" value="0" required></label>
+          <label>Condition (JSON) <input id="rule-condition" type="text" value='{"field":"platform","op":"==","value":"ios"}' spellcheck="false" size="40"></label>
+          <label>Value (JSON) <input id="rule-value" type="text" value="true" spellcheck="false"></label>
+          <button type="submit" class="btn primary">Create rule</button>
+        </form>
+        <p id="rule-result" role="status"></p>
+      </section>
 
-    <h2 id="releases">Releases</h2>
-    <button id="refresh-releases" type="button">Refresh releases</button>
-    <ul id="release-list" aria-label="Releases"><li>Not loaded.</li></ul>
+      <section class="card" aria-labelledby="experiments">
+        <div class="card-head"><h2 id="experiments">Experiments</h2><button id="refresh-experiments" type="button" class="btn ghost">Refresh experiments</button></div>
+        <ul id="experiment-list" aria-label="Experiments"><li>Not loaded.</li></ul>
+        <h3>Experiment create</h3>
+        <form id="experiment-form" aria-label="Experiment create">
+          <label>Name <input id="exp-name" type="text" required spellcheck="false"></label>
+          <label>Flag
+            <select id="exp-flag-select" aria-label="Experiment flag"></select>
+          </label>
+          <label>Seed <input id="exp-seed" type="text" required spellcheck="false" placeholder="exp-seed-1"></label>
+          <label>Variants (JSON) <input id="exp-variants" type="text" value='[{"name":"control","weightBps":5000},{"name":"treatment","weightBps":5000}]' spellcheck="false" size="48"></label>
+          <label>Status
+            <select id="exp-status">
+              <option value="draft">draft</option>
+              <option value="running">running</option>
+              <option value="stopped">stopped</option>
+            </select>
+          </label>
+          <button type="submit" class="btn primary">Create experiment</button>
+        </form>
+        <p id="experiment-result" role="status"></p>
+      </section>
 
-    <h2 id="publish">Publish</h2>
-    <form id="publish-form">
-      <label>Note (optional) <input id="publish-note" name="note" type="text" maxlength="500"></label>
-      <label>baseVersion (auto-filled from latest) <input id="publish-base" name="baseVersion" type="number" min="0" required></label>
-      <button type="submit">Publish new version</button>
-    </form>
-    <p id="publish-result" role="status"></p>
+      <section class="card" aria-labelledby="keys">
+        <div class="card-head"><h2 id="keys">SDK keys</h2><button id="refresh-keys" type="button" class="btn ghost">Refresh keys</button></div>
+        <ul id="key-list" aria-label="SDK keys"><li>Not loaded.</li></ul>
+        <h3>SDK key create</h3>
+        <form id="key-form" aria-label="SDK key create">
+          <label>rateLimit (req/60s) <input id="key-ratelimit" type="number" min="1" value="60"></label>
+          <button type="submit" class="btn primary">Create key for selected env</button>
+        </form>
+        <p id="key-result" role="status"></p>
+        <div id="key-once" hidden>
+          <p><strong>New key (shown once — copy now):</strong></p>
+          <code id="key-once-value"></code>
+          <button id="key-copy" type="button" class="btn secondary">Copy</button>
+        </div>
+      </section>
 
-    <h2 id="stats">Stats</h2>
-    <label>Flag <input id="stats-flag" type="text" spellcheck="false" placeholder="flag key"></label>
-    <label>Since <input id="stats-since" type="text" value="7d" spellcheck="false"></label>
-    <button id="refresh-stats" type="button">Load stats</button>
-    <div id="stats-view" aria-label="Stats">Not loaded.</div>
-  </section>
-</main>
+      <section class="card" aria-labelledby="releases">
+        <div class="card-head"><h2 id="releases">Releases</h2><button id="refresh-releases" type="button" class="btn ghost">Refresh releases</button></div>
+        <ul id="release-list" aria-label="Releases"><li>Not loaded.</li></ul>
+      </section>
+
+      <section class="card" aria-labelledby="publish">
+        <div class="card-head"><h2 id="publish">Publish</h2></div>
+        <form id="publish-form">
+          <label>Note (optional) <input id="publish-note" name="note" type="text" maxlength="500"></label>
+          <label>baseVersion (auto-filled from latest) <input id="publish-base" name="baseVersion" type="number" min="0" required></label>
+          <button type="submit" class="btn primary">Publish new version</button>
+        </form>
+        <p id="publish-result" role="status"></p>
+      </section>
+
+      <section class="card" aria-labelledby="stats">
+        <div class="card-head"><h2 id="stats">Stats</h2></div>
+        <form class="inline-form" onsubmit="return false" aria-label="Stats filters">
+          <label>Flag <input id="stats-flag" type="text" spellcheck="false" placeholder="flag key"></label>
+          <label>Since <input id="stats-since" type="text" value="7d" spellcheck="false"></label>
+          <button id="refresh-stats" type="button" class="btn secondary">Load stats</button>
+        </form>
+        <div id="stats-view" aria-label="Stats">Not loaded.</div>
+      </section>
+      </div>
+    </section>
+  </main>
+</div>
 <script src="/app.js"></script>
 </body>
 </html>

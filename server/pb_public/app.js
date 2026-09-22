@@ -55,8 +55,6 @@
     $("logout-btn").hidden = !on;
   }
 
-  function selectedProject() { return state.projectId; }
-
   function selectedEnv() {
     for (var i = 0; i < state.envs.length; i++) {
       if (state.envs[i].id === state.envId) return state.envs[i];
@@ -362,14 +360,20 @@
       : api("/api/collections/flags/records?perPage=200");
     return tryFiltered.then(function (data) {
       var items = data.items || [];
-      // Client-side fallback: keep only rows for the selected project.
-      if (pid) items = items.filter(function (f) { return !f.project || f.project === pid; });
+      // Client-side filter: strict match only — legacy unscoped rows must
+      // not leak across projects (groups carry a required project relation).
+      if (pid) items = items.filter(function (f) { return f.project === pid; });
       state.flags = items.slice().sort(function (a, b) {
         return (a.key || "") < (b.key || "") ? -1 : 1;
       });
-      return api("/api/collections/groups/records?perPage=200").then(function (g) {
+      var gq = "/api/collections/groups/records?perPage=200";
+      if (pid) gq += "&filter=" + encodeURIComponent('(project="' + pid + '")');
+      return api(gq).then(function (g) {
         state.groups = {};
-        (g.items || []).forEach(function (gr) { state.groups[gr.id] = gr.name || gr.id; });
+        (g.items || []).forEach(function (gr) {
+          if (pid && gr.project !== pid) return;
+          state.groups[gr.id] = gr.name || gr.id;
+        });
         renderGroups();
         renderFlags();
       }, function () { renderFlags(); }); // flags still render if groups missing
@@ -380,7 +384,7 @@
     // Fetch all then filter client-side by selected env relation; sort -version.
     return api("/api/collections/releases/records?perPage=200&sort=-version").then(function (data) {
       var items = data.items || [];
-      if (state.envId) items = items.filter(function (r) { return !r.env || r.env === state.envId; });
+      if (state.envId) items = items.filter(function (r) { return r.env === state.envId; });
       state.releases = items.slice().sort(function (a, b) { return b.version - a.version; });
       renderReleases();
       // Publish form auto-fills baseVersion from the latest version so the
@@ -395,7 +399,7 @@
     if (flagId) q += "&filter=" + encodeURIComponent('(flag="' + flagId + '")');
     return api(q).then(function (data) {
       var items = data.items || [];
-      if (flagId) items = items.filter(function (r) { return !r.flag || r.flag === flagId; });
+      if (flagId) items = items.filter(function (r) { return r.flag === flagId; });
       state.rules = items.slice().sort(function (a, b) { return (a.priority || 0) - (b.priority || 0); });
       renderRules();
     }, function () {
@@ -414,7 +418,7 @@
       if (state.projectId) {
         var flagIds = {};
         state.flags.forEach(function (f) { flagIds[f.id] = true; });
-        items = items.filter(function (x) { return !x.flag || flagIds[x.flag]; });
+        items = items.filter(function (x) { return flagIds[x.flag]; });
       }
       state.experiments = items;
       renderExperiments();
@@ -424,7 +428,7 @@
   function loadKeys() {
     return api("/api/collections/sdk_keys/records?perPage=200").then(function (data) {
       var items = data.items || [];
-      if (state.envId) items = items.filter(function (k) { return !k.env || k.env === state.envId; });
+      if (state.envId) items = items.filter(function (k) { return k.env === state.envId; });
       state.keys = items;
       renderKeys();
     });
@@ -436,11 +440,14 @@
     var url = "/api/v1/admin/env/" + encodeURIComponent(envSlug()) + "/stats?since=" +
       encodeURIComponent(since);
     if (flag) url += "&flag=" + encodeURIComponent(flag);
+    if (state.projectId) url += "&project=" + encodeURIComponent(state.projectId);
     return api(url).then(renderStats);
   }
 
   function publish(note, baseVersion) {
-    return fetch("/api/v1/admin/env/" + encodeURIComponent(envSlug()) + "/publish", {
+    var url = "/api/v1/admin/env/" + encodeURIComponent(envSlug()) + "/publish";
+    if (state.projectId) url += "?project=" + encodeURIComponent(state.projectId);
+    return fetch(url, {
       method: "POST",
       headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
       body: JSON.stringify({ note: note || "", baseVersion: baseVersion }),
@@ -452,7 +459,10 @@
   }
 
   function rollback(version, note) {
-    return fetch("/api/v1/admin/releases/" + encodeURIComponent(version) + "/rollback", {
+    var url = "/api/v1/admin/env/" + encodeURIComponent(envSlug()) +
+      "/releases/" + encodeURIComponent(version) + "/rollback";
+    if (state.projectId) url += "?project=" + encodeURIComponent(state.projectId);
+    return fetch(url, {
       method: "POST",
       headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
       body: JSON.stringify({ note: note || "" }),

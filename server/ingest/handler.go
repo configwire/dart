@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"confignest/envresolve"
+	"configwire/envresolve"
 
 	"github.com/pocketbase/pocketbase/core"
 )

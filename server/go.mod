@@ -1,4 +1,4 @@
-module confignest
+module configwire
 
 go 1.27
 

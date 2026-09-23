@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"confignest/eval"
+	"configwire/eval"
 )
 
 // goodVariants returns a valid 50/50 variant table for tests.

@@ -11,13 +11,13 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/plugins/migratecmd"
 
-	"confignest/envresolve"
-	"confignest/fetch"
-	"confignest/ingest"
-	_ "confignest/migrations"
-	"confignest/purge"
-	"confignest/releases"
-	"confignest/stats"
+	"configwire/envresolve"
+	"configwire/fetch"
+	"configwire/ingest"
+	_ "configwire/migrations"
+	"configwire/purge"
+	"configwire/releases"
+	"configwire/stats"
 )
 
 // ConfigNest data-integrity hooks (todo 5).

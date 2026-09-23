@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"confignest/eval"
-	"confignest/releases"
+	"configwire/eval"
+	"configwire/releases"
 )
 
 func query(raw string) url.Values {

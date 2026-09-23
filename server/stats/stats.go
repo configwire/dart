@@ -1,4 +1,4 @@
-// Package stats implements the stats query API (plan todo 11).
+// Package stats implements the stats query API.
 //
 //	GET /api/v1/admin/env/{env}/stats?flag=X&since=7d
 //
@@ -104,6 +104,7 @@ func RatesFor(st Stats) map[string]float64 {
 	return rates
 }
 
+// TotalFor sums fetches and exposures into the wire total.
 func TotalFor(st Stats) int {
 	return st.Fetches + st.Exposures
 }

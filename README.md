@@ -13,7 +13,7 @@ Wire details live in `docs/CONTRACT.md`. Operator security notes live in
 ## Prereqs
 
 - Go (version floor per `server/go.mod`)
-- Dart SDK `>=3.4.0` (pure-Dart client in `client/dart`)
+- Dart SDK `>=3.12.0` (pure-Dart client in `client/configwire`)
 - `make`, `bash`, `curl`, `python3`
 
 ## Serving (cwd rule)
@@ -80,7 +80,7 @@ answers `304` empty.
 ## Dart snippet
 
 ```dart
-import 'package:config_wire/config_wire.dart';
+import 'package:configwire/configwire.dart';
 
 final cw = ConfigWire(
   apiKey: 'YOUR_SDK_KEY', // sent as X-ConfigWire-Key, never printed
@@ -97,7 +97,7 @@ await cw.dispose();
 
 Realtime: `cw.connectRealtime()` opens SSE plus a 15min poll fallback,
 so freshness is at most `pollInterval` plus one fetch on every path.
-See `client/dart/example/main.dart` for a runnable demo.
+See `client/configwire/example/main.dart` for a runnable demo.
 
 ## Ports
 

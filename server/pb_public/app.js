@@ -187,11 +187,13 @@
           "<td>" + esc(gname) + "</td><td><code>" + esc(JSON.stringify(f.defaultValue)) +
           "</code></td>" +
           '<td><button type="button" data-stats-flag="' + esc(f.key) + '">stats</button> ' +
-          '<button type="button" data-edit-flag="' + esc(f.id) + '">edit</button></td></tr>';
+          '<button type="button" data-edit-flag="' + esc(f.id) + '">edit</button> ' +
+          '<button type="button" data-delete-flag="' + esc(f.id) + '">delete</button></td></tr>';
       });
     $("flag-tbody").innerHTML = rows.length
       ? rows.join("")
       : '<tr><td colspan="5">No flags for this project.</td></tr>';
+    renderFlagGroupSelect();
     renderFlagSelects();
   }
 
@@ -217,6 +219,19 @@
         return '<option value="' + esc(id) + '">' + esc(state.groups[id]) + "</option>";
       }).join("");
     sel.value = cur;
+    renderFlagGroupSelect();
+  }
+
+  function renderFlagGroupSelect() {
+    var sel = $("flag-group");
+    if (!sel) return;
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">(no group)</option>' +
+      Object.keys(state.groups).map(function (id) {
+        return '<option value="' + esc(id) + '">' + esc(state.groups[id]) + "</option>";
+      }).join("");
+    if (cur && state.groups[cur]) sel.value = cur;
+    else sel.value = "";
   }
 
   function renderReleases() {
@@ -492,7 +507,7 @@
       defaultValue: parsed.value,
       project: state.projectId,
     };
-    var group = $("flag-group").value.trim();
+    var group = $("flag-group").value || "";
     if (group) body.group = group;
     var req = id
       ? apiMut("PATCH", "/api/collections/flags/records/" + encodeURIComponent(id), body)
@@ -502,6 +517,78 @@
         ? "flag saved: " + (out.data.key || out.data.id)
         : "flag save failed (" + out.status + "): " + serverMessage(out.data);
       if (out.status === 409) $("flag-result").textContent += " — refresh and retry";
+      loadFlags().catch(function () {});
+      return out;
+    });
+  }
+
+  function createProject(ev) {
+    if (ev) ev.preventDefault();
+    var name = $("project-name").value.trim();
+    if (!name) { $("project-result").textContent = "project name is required"; return Promise.resolve(); }
+    return apiMut("POST", "/api/collections/projects/records", { name: name }).then(function (out) {
+      var ok = out.status === 200 || out.status === 201;
+      $("project-result").textContent = ok
+        ? "project created: " + (out.data.name || out.data.id)
+        : "project create failed (" + out.status + "): " + serverMessage(out.data);
+      if (ok) {
+        toast("project created: " + (out.data.name || out.data.id));
+        $("project-name").value = "";
+        var newId = out.data.id;
+        loadProjects().then(function () {
+          if (newId) { state.projectId = newId; persistScope(); }
+          return loadEnvs();
+        }).then(function () {
+          renderScopeHint();
+          loadFlags().catch(function () {});
+        }).catch(function () {});
+      }
+      return out;
+    });
+  }
+
+  function createEnv(ev) {
+    if (ev) ev.preventDefault();
+    if (!state.projectId) { $("env-result").textContent = "pick a project first"; return Promise.resolve(); }
+    var slug = $("env-slug").value.trim();
+    if (!slug) { $("env-result").textContent = "env slug is required"; return Promise.resolve(); }
+    return apiMut("POST", "/api/collections/environments/records", { project: state.projectId, slug: slug }).then(function (out) {
+      var ok = out.status === 200 || out.status === 201;
+      $("env-result").textContent = ok
+        ? "env created: " + (out.data.slug || out.data.id)
+        : "env create failed (" + out.status + "): " + serverMessage(out.data);
+      if (ok) {
+        toast("env created: " + (out.data.slug || out.data.id));
+        $("env-slug").value = "";
+        loadEnvs().catch(function () {});
+      }
+      return out;
+    });
+  }
+
+  function createGroup(ev) {
+    if (ev) ev.preventDefault();
+    if (!state.projectId) { $("group-result").textContent = "select a project first"; return Promise.resolve(); }
+    var name = $("group-name").value.trim();
+    if (!name) { $("group-result").textContent = "group name is required"; return Promise.resolve(); }
+    return apiMut("POST", "/api/collections/groups/records", { name: name, project: state.projectId }).then(function (out) {
+      var ok = out.status === 200 || out.status === 201;
+      $("group-result").textContent = ok
+        ? "group created: " + (out.data.name || out.data.id)
+        : "group create failed (" + out.status + "): " + serverMessage(out.data);
+      if (ok) {
+        toast("group created: " + (out.data.name || out.data.id));
+        $("group-name").value = "";
+        loadFlags().catch(function () {});
+      }
+      return out;
+    });
+  }
+
+  function deleteFlag(id) {
+    return apiMut("DELETE", "/api/collections/flags/records/" + encodeURIComponent(id)).then(function (out) {
+      var ok = out.status === 200 || out.status === 201 || out.status === 204;
+      toast(ok ? "flag deleted" : "flag delete failed (" + out.status + "): " + serverMessage(out.data));
       loadFlags().catch(function () {});
       return out;
     });
@@ -676,7 +763,11 @@
     $("flag-reset").addEventListener("click", function () {
       $("flag-id").value = "";
       $("flag-form").reset();
+      renderFlagGroupSelect();
     });
+    $("project-create-form").addEventListener("submit", createProject);
+    $("env-create-form").addEventListener("submit", createEnv);
+    $("group-create-form").addEventListener("submit", createGroup);
     $("rule-form").addEventListener("submit", createRule);
     $("experiment-form").addEventListener("submit", createExperiment);
     $("key-form").addEventListener("submit", createKey);
@@ -697,6 +788,12 @@
 
     $("flag-tbody").addEventListener("click", function (ev) {
       var t = ev.target;
+      var del = t && t.getAttribute && t.getAttribute("data-delete-flag");
+      if (del) {
+        if (!window.confirm("Delete this flag?")) return;
+        deleteFlag(del).catch(function (e) { toast(e.message); });
+        return;
+      }
       var k = t && t.getAttribute && t.getAttribute("data-stats-flag");
       if (k) { $("stats-flag").value = k; loadStats().catch(function () {}); return; }
       var fid = t && t.getAttribute && t.getAttribute("data-edit-flag");
@@ -763,6 +860,8 @@
     loadRules: loadRules, loadExperiments: loadExperiments, loadKeys: loadKeys,
     saveFlag: saveFlag, createRule: createRule, createExperiment: createExperiment,
     createKey: createKey, revokeKey: revokeKey,
+    createProject: createProject, createEnv: createEnv, createGroup: createGroup,
+    deleteFlag: deleteFlag,
     publish: publish, rollback: rollback,
   };
 })();

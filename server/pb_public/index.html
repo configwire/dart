@@ -62,6 +62,16 @@
           <select id="env-select" aria-label="Environment"></select>
         </label>
         <button id="refresh-scope" type="button" class="btn secondary">Reload scope</button>
+        <form id="project-create-form" class="inline-form" aria-label="Project create">
+          <label>New project <input id="project-name" type="text" required maxlength="128" spellcheck="false" placeholder="project name"></label>
+          <button type="submit" class="btn primary">Add project</button>
+        </form>
+        <p id="project-result" role="status"></p>
+        <form id="env-create-form" class="inline-form" aria-label="Environment create">
+          <label>New env slug <input id="env-slug" type="text" required maxlength="64" spellcheck="false" placeholder="staging"></label>
+          <button type="submit" class="btn primary">Add env</button>
+        </form>
+        <p id="env-result" role="status"></p>
       </div>
       <p id="scope-hint" class="muted" role="status"></p>
 
@@ -73,6 +83,11 @@
             <option value="">(all groups)</option>
           </select>
         </label>
+        <form id="group-create-form" class="inline-form" aria-label="Group create">
+          <label>New group <input id="group-name" type="text" required maxlength="128" spellcheck="false" placeholder="group name"></label>
+          <button type="submit" class="btn primary">Add group</button>
+        </form>
+        <p id="group-result" role="status"></p>
         <div class="table-wrap">
         <table id="flag-table" aria-label="Flags">
           <thead><tr><th>Key</th><th>Type</th><th>Group</th><th>Default</th><th></th></tr></thead>
@@ -92,7 +107,11 @@
               <option value="json">json</option>
             </select>
           </label>
-          <label>Group id (optional) <input id="flag-group" type="text" spellcheck="false" placeholder="group id"></label>
+          <label>Group (optional)
+            <select id="flag-group" aria-label="Flag group">
+              <option value="">(no group)</option>
+            </select>
+          </label>
           <label>defaultValue (JSON) <input id="flag-default" type="text" value="false" spellcheck="false"></label>
           <button type="submit" id="flag-submit" class="btn primary">Save flag</button>
           <button type="button" id="flag-reset" class="btn ghost">Clear</button>

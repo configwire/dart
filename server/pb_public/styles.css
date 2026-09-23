@@ -271,6 +271,61 @@ td code { background: transparent; border: none; padding: 0; }
 #key-once p { margin: 0; width: 100%; }
 #key-once[hidden] { display: none; }
 
+/* ---- JSON editor (shared expand dialog + inline validators) ---- */
+#flag-form { display: grid; grid-template-columns: minmax(160px, 1fr) 130px minmax(140px, 0.9fr); gap: var(--space-3); align-items: start; }
+#flag-form label { min-width: 0; }
+#flag-form label input, #flag-form label select { width: 100%; }
+#flag-form .flag-default-label { grid-column: 1 / -1; }
+#flag-form .form-actions { grid-column: 1 / -1; display: flex; gap: var(--space-2); }
+#rule-form { display: grid; grid-template-columns: 140px 1fr; gap: var(--space-3); align-items: start; }
+#rule-form label { min-width: 0; }
+#rule-form label input, #rule-form label select { width: 100%; }
+#rule-form .json-field-label, #rule-form .form-actions { grid-column: 1 / -1; }
+#rule-form .form-actions { display: flex; gap: var(--space-2); }
+#experiment-form { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); align-items: start; }
+#experiment-form label { min-width: 0; }
+#experiment-form label input, #experiment-form label select { width: 100%; }
+#experiment-form .json-field-label { grid-column: 1 / -1; }
+#experiment-form .form-actions { grid-column: 1 / -1; display: flex; gap: var(--space-2); }
+.json-row { display: flex; gap: var(--space-2); align-items: stretch; }
+.json-row input { flex: 1 1 auto; min-width: 0; }
+.json-row button { flex-shrink: 0; align-self: center; padding: var(--space-2) var(--space-3); font-size: 12px; font-weight: 500; }
+.json-hint { font-size: 12px; min-height: 0; margin-top: 2px; }
+.json-hint:empty { display: none; }
+.json-hint.ok { color: var(--ok); }
+.json-hint.err { color: var(--danger); }
+input.invalid, textarea.invalid { border-color: var(--danger); }
+input.valid, textarea.valid { border-color: rgba(52, 211, 153, 0.55); }
+dialog#json-editor-dialog {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  width: min(640px, 92vw);
+}
+dialog#json-editor-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+dialog#json-editor-dialog h3 { margin: 0 0 var(--space-1); font-size: 15px; color: var(--text); }
+dialog#json-editor-dialog .muted { font-size: 13px; }
+#json-editor-text {
+  width: 100%;
+  min-height: 240px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  resize: vertical;
+}
+#json-editor-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+#json-editor-status { margin: var(--space-2) 0 0; }
+.dialog-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); align-items: center; }
+.dialog-spacer { flex: 1 1 auto; }
+
 /* ---- Responsive ---- */
 @media (min-width: 901px) {
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
@@ -298,6 +353,12 @@ td code { background: transparent; border: none; padding: 0; }
   #scope-bar { flex-direction: column; align-items: stretch; }
   #scope-bar button { width: 100%; }
   form button[type="submit"] { width: 100%; }
+  #flag-form { grid-template-columns: 1fr; }
+  #flag-form .form-actions { flex-direction: column; align-items: stretch; }
+  #flag-form .form-actions button { width: 100%; }
+  #rule-form, #experiment-form { grid-template-columns: 1fr; }
+  #rule-form .form-actions, #experiment-form .form-actions { flex-direction: column; align-items: stretch; }
+  #rule-form .form-actions button, #experiment-form .form-actions button { width: 100%; }
   .card { padding: var(--space-3); }
 }
 @media (prefers-reduced-motion: reduce) {

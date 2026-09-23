@@ -31,6 +31,12 @@
 
   function $(id) { return document.getElementById(id); }
 
+  function on(id, ev, fn) {
+    var el = $(id);
+    if (el && el.addEventListener) el.addEventListener(ev, fn);
+    return el;
+  }
+
   function authHeaders() {
     // BARE token. Do NOT prefix with "TOKEN " (PocketBase data API 403s).
     return state.token ? { Authorization: state.token } : {};
@@ -496,6 +502,137 @@
     }
   }
 
+  function jsonDetail(raw) {
+    if (raw.trim() === "") return { ok: true, value: null };
+    try {
+      return { ok: true, value: JSON.parse(raw) };
+    } catch (e) {
+      return { ok: false, error: (e && e.message) ? e.message : "invalid JSON" };
+    }
+  }
+
+  function setJsonHint(hintEl, inputEl, ok, msg) {
+    if (!hintEl) return;
+    hintEl.textContent = msg;
+    hintEl.className = "json-hint" + (msg ? (ok ? " ok" : " err") : "");
+    if (inputEl) {
+      inputEl.classList.remove("valid", "invalid");
+      if (msg) inputEl.classList.add(ok ? "valid" : "invalid");
+    }
+  }
+
+  function updateJsonHint(inputId) {
+    var input = $(inputId);
+    if (!input) return false;
+    var parsed = jsonDetail(input.value);
+    setJsonHint(
+      $(inputId + "-hint"),
+      input,
+      parsed.ok,
+      parsed.ok ? (input.value.trim() === "" ? "" : "Valid JSON") : "Invalid JSON: " + parsed.error
+    );
+    return parsed.ok;
+  }
+
+  function updateFlagDefaultHint() {
+    return updateJsonHint("flag-default");
+  }
+
+  function updateRuleConditionHint() {
+    return updateJsonHint("rule-condition");
+  }
+
+  function updateRuleValueHint() {
+    return updateJsonHint("rule-value");
+  }
+
+  function updateExpVariantsHint() {
+    return updateJsonHint("exp-variants");
+  }
+
+  function updateAllJsonHints() {
+    updateJsonHint("flag-default");
+    updateJsonHint("rule-condition");
+    updateJsonHint("rule-value");
+    updateJsonHint("exp-variants");
+  }
+
+  var jsonEditorTarget = "flag-default";
+  var jsonEditorLabels = {
+    "flag-default": "defaultValue",
+    "rule-condition": "condition",
+    "rule-value": "value",
+    "exp-variants": "variants",
+  };
+
+  function updateEditorStatus() {
+    var ta = $("json-editor-text");
+    var parsed = jsonDetail(ta.value);
+    setJsonHint(
+      $("json-editor-status"),
+      ta,
+      parsed.ok,
+      parsed.ok ? "Valid JSON" : "Invalid JSON: " + parsed.error
+    );
+    var save = $("json-editor-save");
+    if (save) save.disabled = !parsed.ok;
+    return parsed.ok;
+  }
+
+  function openJsonEditorFor(targetId) {
+    var input = $(targetId);
+    if (!input) return;
+    jsonEditorTarget = targetId;
+    var label = jsonEditorLabels[targetId] || targetId;
+    var title = $("json-editor-title");
+    if (title) title.textContent = "Edit " + label + " (JSON)";
+    var ta = $("json-editor-text");
+    if (!ta) return;
+    var parsed = jsonDetail(input.value);
+    ta.value = parsed.ok && input.value.trim() !== ""
+      ? JSON.stringify(parsed.value, null, 2)
+      : input.value;
+    updateEditorStatus();
+    var dlg = $("json-editor-dialog");
+    if (!dlg) return;
+    if (dlg.showModal) {
+      try {
+        if (!dlg.open) dlg.showModal();
+      } catch (e) { /* already open or unsupported — editor still usable inline */ }
+    }
+    try {
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    } catch (e2) { /* focus/selection is best-effort */ }
+  }
+
+  function openJsonEditor(evOrId) {
+    if (typeof evOrId === "string" && $(evOrId)) return openJsonEditorFor(evOrId);
+    if (evOrId) {
+      var src = (evOrId.target && evOrId.target.closest &&
+          evOrId.target.closest("[data-target]")) ||
+        evOrId.currentTarget;
+      if (src && src.getAttribute) {
+        var t = src.getAttribute("data-target");
+        if (t && $(t)) return openJsonEditorFor(t);
+      }
+    }
+    return openJsonEditorFor(jsonEditorTarget);
+  }
+
+  function closeJsonEditor(save) {
+    var dlg = $("json-editor-dialog");
+    if (save) {
+      if (!updateEditorStatus()) return;
+      var input = $(jsonEditorTarget);
+      if (input) {
+        input.value = $("json-editor-text").value;
+        updateJsonHint(jsonEditorTarget);
+      }
+    }
+    if (dlg && dlg.open) dlg.close();
+  }
+
   function saveFlag(ev) {
     if (ev) ev.preventDefault();
     var id = $("flag-id").value;
@@ -619,10 +756,9 @@
 
   function createExperiment(ev) {
     if (ev) ev.preventDefault();
-    var variants;
-    try {
-      variants = JSON.parse($("exp-variants").value);
-    } catch (e) { $("experiment-result").textContent = "variants is not valid JSON"; return Promise.resolve(); }
+    var parsed = parseJSONInput($("exp-variants").value, "variants");
+    if (!parsed.ok) { $("experiment-result").textContent = parsed.error; return Promise.resolve(); }
+    var variants = parsed.value;
     var body = {
       name: $("exp-name").value.trim(),
       seed: $("exp-seed").value.trim(),
@@ -723,13 +859,13 @@
     loadPersistedScope();
     if (state.token) { setLoggedIn(true); refreshAll(); }
 
-    $("login-form").addEventListener("submit", function (ev) {
+    on("login-form", "submit", function (ev) {
       ev.preventDefault();
       login($("login-email").value, $("login-password").value).catch(function () { /* shown inline */ });
     });
-    $("logout-btn").addEventListener("click", logout);
-    $("refresh-scope").addEventListener("click", refreshAll);
-    $("project-select").addEventListener("change", function () {
+    on("logout-btn", "click", logout);
+    on("refresh-scope", "click", refreshAll);
+    on("project-select", "change", function () {
       state.projectId = $("project-select").value || null;
       state.envId = null;
       persistScope();
@@ -740,7 +876,7 @@
         loadKeys().catch(function () {});
       });
     });
-    $("env-select").addEventListener("change", function () {
+    on("env-select", "change", function () {
       state.envId = $("env-select").value || null;
       var sel = selectedEnv();
       if (sel && sel.slug) state.envSlug = sel.slug;
@@ -749,29 +885,54 @@
       loadReleases().catch(function () {});
       loadKeys().catch(function () {});
     });
-    $("refresh-flags").addEventListener("click", function () { loadFlags().catch(function (e) { toast(e.message); }); });
-    $("refresh-releases").addEventListener("click", function () { loadReleases().catch(function (e) { toast(e.message); }); });
-    $("refresh-rules").addEventListener("click", function () { loadRules().catch(function (e) { toast(e.message); }); });
-    $("refresh-experiments").addEventListener("click", function () { loadExperiments().catch(function (e) { toast(e.message); }); });
-    $("refresh-keys").addEventListener("click", function () { loadKeys().catch(function (e) { toast(e.message); }); });
-    $("refresh-stats").addEventListener("click", function () {
+    on("refresh-flags", "click", function () { loadFlags().catch(function (e) { toast(e.message); }); });
+    on("refresh-releases", "click", function () { loadReleases().catch(function (e) { toast(e.message); }); });
+    on("refresh-rules", "click", function () { loadRules().catch(function (e) { toast(e.message); }); });
+    on("refresh-experiments", "click", function () { loadExperiments().catch(function (e) { toast(e.message); }); });
+    on("refresh-keys", "click", function () { loadKeys().catch(function (e) { toast(e.message); }); });
+    on("refresh-stats", "click", function () {
       loadStats().catch(function (e) { $("stats-view").textContent = e.message; });
     });
-    $("group-filter").addEventListener("change", renderFlags);
-    $("rule-flag-select").addEventListener("change", function () { loadRules().catch(function () {}); });
-    $("flag-form").addEventListener("submit", saveFlag);
-    $("flag-reset").addEventListener("click", function () {
+    on("group-filter", "change", renderFlags);
+    on("rule-flag-select", "change", function () { loadRules().catch(function () {}); });
+    on("flag-form", "submit", saveFlag);
+    on("flag-default", "input", updateFlagDefaultHint);
+    on("rule-condition", "input", updateRuleConditionHint);
+    on("rule-value", "input", updateRuleValueHint);
+    on("exp-variants", "input", updateExpVariantsHint);
+    document.addEventListener("click", function (ev) {
+      var t = ev && ev.target && ev.target.closest ? ev.target.closest(".json-expand") : null;
+      if (t && t.getAttribute) {
+        var target = t.getAttribute("data-target");
+        if (target) openJsonEditorFor(target);
+      }
+    });
+    on("json-editor-text", "input", updateEditorStatus);
+    on("json-editor-format", "click", function () {
+      var ta = $("json-editor-text");
+      if (!ta) return;
+      var parsed = jsonDetail(ta.value);
+      if (!parsed.ok) { updateEditorStatus(); return; }
+      ta.value = JSON.stringify(parsed.value, null, 2);
+      updateEditorStatus();
+      try { ta.focus(); } catch (e) { /* best-effort */ }
+    });
+    on("json-editor-save", "click", function () { closeJsonEditor(true); });
+    on("json-editor-cancel", "click", function () { closeJsonEditor(false); });
+    updateAllJsonHints();
+    on("flag-reset", "click", function () {
       $("flag-id").value = "";
       $("flag-form").reset();
       renderFlagGroupSelect();
+      updateFlagDefaultHint();
     });
-    $("project-create-form").addEventListener("submit", createProject);
-    $("env-create-form").addEventListener("submit", createEnv);
-    $("group-create-form").addEventListener("submit", createGroup);
-    $("rule-form").addEventListener("submit", createRule);
-    $("experiment-form").addEventListener("submit", createExperiment);
-    $("key-form").addEventListener("submit", createKey);
-    $("key-copy").addEventListener("click", function () {
+    on("project-create-form", "submit", createProject);
+    on("env-create-form", "submit", createEnv);
+    on("group-create-form", "submit", createGroup);
+    on("rule-form", "submit", createRule);
+    on("experiment-form", "submit", createExperiment);
+    on("key-form", "submit", createKey);
+    on("key-copy", "click", function () {
       var v = $("key-once-value").textContent;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(v).then(function () { toast("copied"); }, function () { toast("copy failed"); });
@@ -786,7 +947,7 @@
       }
     });
 
-    $("flag-tbody").addEventListener("click", function (ev) {
+    on("flag-tbody", "click", function (ev) {
       var t = ev.target;
       var del = t && t.getAttribute && t.getAttribute("data-delete-flag");
       if (del) {
@@ -806,6 +967,7 @@
             $("flag-type").value = f.type || "bool";
             $("flag-group").value = f.group || "";
             $("flag-default").value = JSON.stringify(f.defaultValue === undefined ? null : f.defaultValue);
+            updateFlagDefaultHint();
             $("flag-result").textContent = "editing " + (f.key || fid);
             break;
           }
@@ -813,7 +975,7 @@
       }
     });
 
-    $("release-list").addEventListener("click", function (ev) {
+    on("release-list", "click", function (ev) {
       var v = ev.target && ev.target.getAttribute && ev.target.getAttribute("data-rollback-version");
       if (!v) return;
       rollback(v, "rollback via admin UI").then(function (out) {
@@ -824,12 +986,12 @@
       });
     });
 
-    $("key-list").addEventListener("click", function (ev) {
+    on("key-list", "click", function (ev) {
       var id = ev.target && ev.target.getAttribute && ev.target.getAttribute("data-revoke-key");
       if (id) revokeKey(id);
     });
 
-    $("publish-form").addEventListener("submit", function (ev) {
+    on("publish-form", "submit", function (ev) {
       ev.preventDefault();
       var base = parseInt($("publish-base").value, 10);
       publish($("publish-note").value, base).then(function (out) {
@@ -863,5 +1025,11 @@
     createProject: createProject, createEnv: createEnv, createGroup: createGroup,
     deleteFlag: deleteFlag,
     publish: publish, rollback: rollback,
+    openJsonEditor: openJsonEditor, closeJsonEditor: closeJsonEditor,
+    openJsonEditorFor: openJsonEditorFor,
+    updateFlagDefaultHint: updateFlagDefaultHint, updateEditorStatus: updateEditorStatus,
+    updateJsonHint: updateJsonHint, updateAllJsonHints: updateAllJsonHints,
+    updateRuleConditionHint: updateRuleConditionHint, updateRuleValueHint: updateRuleValueHint,
+    updateExpVariantsHint: updateExpVariantsHint,
   };
 })();

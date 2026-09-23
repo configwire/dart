@@ -112,9 +112,17 @@
               <option value="">(no group)</option>
             </select>
           </label>
-          <label>defaultValue (JSON) <input id="flag-default" type="text" value="false" spellcheck="false"></label>
-          <button type="submit" id="flag-submit" class="btn primary">Save flag</button>
-          <button type="button" id="flag-reset" class="btn ghost">Clear</button>
+          <label class="flag-default-label">defaultValue (JSON)
+            <span class="json-row">
+              <input id="flag-default" type="text" value="false" spellcheck="false" aria-describedby="flag-default-hint">
+              <button type="button" id="flag-default-expand" class="btn secondary json-expand" data-target="flag-default" aria-haspopup="dialog" title="Open larger JSON editor">Expand</button>
+            </span>
+            <span id="flag-default-hint" class="json-hint" role="status"></span>
+          </label>
+          <div class="form-actions">
+            <button type="submit" id="flag-submit" class="btn primary">Save flag</button>
+            <button type="button" id="flag-reset" class="btn ghost">Clear</button>
+          </div>
         </form>
         <p id="flag-result" role="status"></p>
       </section>
@@ -128,9 +136,23 @@
         <h3>Rule create</h3>
         <form id="rule-form" aria-label="Rule create">
           <label>Priority <input id="rule-priority" type="number" value="0" required></label>
-          <label>Condition (JSON) <input id="rule-condition" type="text" value='{"field":"platform","op":"==","value":"ios"}' spellcheck="false" size="40"></label>
-          <label>Value (JSON) <input id="rule-value" type="text" value="true" spellcheck="false"></label>
-          <button type="submit" class="btn primary">Create rule</button>
+          <label class="json-field-label">Condition (JSON)
+            <span class="json-row">
+              <input id="rule-condition" type="text" value='{"field":"platform","op":"==","value":"ios"}' spellcheck="false" size="40" aria-describedby="rule-condition-hint">
+              <button type="button" class="btn secondary json-expand" data-target="rule-condition" aria-haspopup="dialog" title="Open larger JSON editor">Expand</button>
+            </span>
+            <span id="rule-condition-hint" class="json-hint" role="status"></span>
+          </label>
+          <label class="json-field-label">Value (JSON)
+            <span class="json-row">
+              <input id="rule-value" type="text" value="true" spellcheck="false" aria-describedby="rule-value-hint">
+              <button type="button" class="btn secondary json-expand" data-target="rule-value" aria-haspopup="dialog" title="Open larger JSON editor">Expand</button>
+            </span>
+            <span id="rule-value-hint" class="json-hint" role="status"></span>
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Create rule</button>
+          </div>
         </form>
         <p id="rule-result" role="status"></p>
       </section>
@@ -145,7 +167,13 @@
             <select id="exp-flag-select" aria-label="Experiment flag"></select>
           </label>
           <label>Seed <input id="exp-seed" type="text" required spellcheck="false" placeholder="exp-seed-1"></label>
-          <label>Variants (JSON) <input id="exp-variants" type="text" value='[{"name":"control","weightBps":5000},{"name":"treatment","weightBps":5000}]' spellcheck="false" size="48"></label>
+          <label class="json-field-label">Variants (JSON)
+            <span class="json-row">
+              <input id="exp-variants" type="text" value='[{"name":"control","weightBps":5000},{"name":"treatment","weightBps":5000}]' spellcheck="false" size="48" aria-describedby="exp-variants-hint">
+              <button type="button" class="btn secondary json-expand" data-target="exp-variants" aria-haspopup="dialog" title="Open larger JSON editor">Expand</button>
+            </span>
+            <span id="exp-variants-hint" class="json-hint" role="status"></span>
+          </label>
           <label>Status
             <select id="exp-status">
               <option value="draft">draft</option>
@@ -153,7 +181,9 @@
               <option value="stopped">stopped</option>
             </select>
           </label>
-          <button type="submit" class="btn primary">Create experiment</button>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Create experiment</button>
+          </div>
         </form>
         <p id="experiment-result" role="status"></p>
       </section>
@@ -199,9 +229,21 @@
         <div id="stats-view" aria-label="Stats">Not loaded.</div>
       </section>
       </div>
+      <dialog id="json-editor-dialog" aria-labelledby="json-editor-title">
+        <h3 id="json-editor-title">Edit JSON</h3>
+        <p class="muted" id="json-editor-subtitle">Larger editor with automatic JSON validation. Save writes back to the form.</p>
+        <textarea id="json-editor-text" rows="14" spellcheck="false" aria-describedby="json-editor-status"></textarea>
+        <p id="json-editor-status" class="json-hint" role="status"></p>
+        <div class="dialog-actions">
+          <button type="button" id="json-editor-format" class="btn ghost">Format</button>
+          <span class="dialog-spacer"></span>
+          <button type="button" id="json-editor-cancel" class="btn ghost">Cancel</button>
+          <button type="button" id="json-editor-save" class="btn primary">Save</button>
+        </div>
+      </dialog>
     </section>
   </main>
 </div>
-<script src="/app.js"></script>
+<script src="/app.js?v=2"></script>
 </body>
 </html>

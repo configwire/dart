@@ -33,7 +33,7 @@ Future<void> postFetchEvent({
 }) async {
   try {
     final uri = Uri.parse(
-      '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/env/$env/events',
+      '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/env/${Uri.encodeComponent(env)}/events',
     );
     final body = jsonEncode({
       'events': [
@@ -45,7 +45,7 @@ Future<void> postFetchEvent({
         },
       ],
     });
-    final resp = await client
+    await client
         .post(
           uri,
           headers: {
@@ -55,9 +55,8 @@ Future<void> postFetchEvent({
           body: body,
         )
         .timeout(timeout);
-    // Drain explicitly so linters see the response is handled; any
-    // status (202, 429, 401, ...) is fine — best effort only.
-    if (resp.statusCode == -1) return;
+    // Response status/body intentionally ignored: any status
+    // (202, 429, 401, ...) is fine — best effort only.
   } catch (_) {
     // Intentionally swallowed: analytics must never break fetching.
   }

@@ -1,4 +1,4 @@
-/* ConfigNest admin shell logic (static only; all dynamic data via fetch).
+/* ConfigWire admin shell logic (static only; all dynamic data via fetch).
  *
  * AUTH RULE (critical, from T11): the data-API superuser token is sent BARE
  * (`Authorization: <token>`), NEVER with a `TOKEN ` prefix (that 403s).

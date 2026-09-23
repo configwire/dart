@@ -34,7 +34,7 @@ not make: `cd server && go run . serve --http 127.0.0.1:8109 --dir /tmp/cw-pbdat
 
 Fresh temp dir, backgrounded server, superuser to fetch to stats.
 Copy-paste verbatim; every command below was executed in order for the
-T18 proof (log: `.omo/evidence/task-18-confignest.log`).
+T18 proof (log: `.omo/evidence/task-18-configwire.log`).
 
 ```bash
 mkdir -p /tmp/cw-qs && cd server

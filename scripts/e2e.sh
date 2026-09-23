@@ -17,7 +17,7 @@ PORT="${E2E_PORT:-8108}"
 BASE_URL="${BASE_URL:-http://127.0.0.1:$PORT}"
 DATA_DIR="/tmp/cw-t17-pbdata"
 BIN="/tmp/cw-t17-configwire"
-LOG="$REPO_ROOT/.omo/evidence/task-17-confignest.log"
+LOG="$REPO_ROOT/.omo/evidence/task-17-configwire.log"
 mkdir -p "$REPO_ROOT/.omo/evidence"
 # Script tees itself (stdout+stderr) to the evidence log.
 exec > >(tee "$LOG") 2>&1

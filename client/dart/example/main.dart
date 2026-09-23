@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:config_nest/config_nest.dart';
+import 'package:config_wire/config_wire.dart';
 
 /// Defaults demo (cold path) + live-fetch demo (used by T12 live smoke).
 ///
@@ -14,7 +14,7 @@ Future<void> main() async {
   final cache = Platform.environment['CN_CACHE'];
   final live = Platform.environment['CN_LIVE'] == '1';
 
-  final cn = ConfigNest(
+  final cn = ConfigWire(
     apiKey: apiKey,
     env: env,
     baseUrl: baseUrl,

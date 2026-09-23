@@ -50,7 +50,7 @@ Future<void> postFetchEvent({
           uri,
           headers: {
             'Content-Type': 'application/json',
-            'X-ConfigNest-Key': apiKey,
+            'X-ConfigWire-Key': apiKey,
           },
           body: body,
         )

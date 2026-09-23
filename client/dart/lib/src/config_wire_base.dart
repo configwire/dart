@@ -22,7 +22,7 @@ enum FetchStatus {
   /// 304: server state unchanged, cached values kept.
   cached,
 
-  /// Skipped by [ConfigNest.minimumFetchInterval] throttling.
+  /// Skipped by [ConfigWire.minimumFetchInterval] throttling.
   throttled,
 
   /// Network failure, malformed 200, or non-200/304 status.
@@ -30,7 +30,7 @@ enum FetchStatus {
   error,
 }
 
-/// Pure-Dart ConfigNest client: offline-first fetch + file cache (todo 12).
+/// Pure-Dart ConfigWire client: offline-first fetch + file cache (todo 12).
 ///
 /// Lifecycle: [ensureInitialized] loads the cache file into memory, then
 /// [fetchAndActivate] refreshes from the server. All reads are synchronous
@@ -50,10 +50,10 @@ enum FetchStatus {
 /// Two overlapping calls both run; last-completes-wins on values/etag.
 /// Callers that need serialization should `await` each call.
 ///
-/// Privacy: the apiKey is sent only as the `X-ConfigNest-Key` header and
+/// Privacy: the apiKey is sent only as the `X-ConfigWire-Key` header and
 /// is never printed or logged by this client.
-class ConfigNest {
-  ConfigNest({
+class ConfigWire {
+  ConfigWire({
     required this.apiKey,
     required this.env,
     required this.baseUrl,
@@ -65,7 +65,7 @@ class ConfigNest {
   })  : _defaults = Map<String, Object?>.from(defaults),
         _values = Map<String, Object?>.from(defaults),
         _client = client,
-        cacheFile = cacheFile ?? '.config_nest_$env-cache.json';
+        cacheFile = cacheFile ?? '.config_wire_$env-cache.json';
 
   final String apiKey;
   final String env;
@@ -83,7 +83,7 @@ class ConfigNest {
   final http.Client? _client;
   http.Client? _owned;
 
-  /// Cache file path. Default: `.config_nest_<env>-cache.json` in the
+  /// Cache file path. Default: `.config_wire_<env>-cache.json` in the
   /// current working directory (RISK: cwd-dependent; pass an explicit
   /// app-documents path in production — see notepad T12 entry).
   final String cacheFile;
@@ -216,7 +216,7 @@ class ConfigNest {
       final uri = Uri.parse(
         '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/env/$env/config${uid.isEmpty ? '' : '?uid=${Uri.encodeComponent(uid)}'}',
       );
-      final headers = <String, String>{'X-ConfigNest-Key': apiKey};
+      final headers = <String, String>{'X-ConfigWire-Key': apiKey};
       if (_etag != null && _etag!.isNotEmpty) {
         // Stored verbatim; the server 304s on EXACT match only.
         headers['If-None-Match'] = _etag!;

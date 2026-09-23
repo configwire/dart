@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:config_nest/config_nest.dart';
+import 'package:config_wire/config_wire.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
@@ -24,8 +24,8 @@ void main() {
     if (await tmp.exists()) await tmp.delete(recursive: true);
   });
 
-  ConfigNest clientWith(MockClient mock, {Map<String, Object?> defaults = const {}}) {
-    return ConfigNest(
+  ConfigWire clientWith(MockClient mock, {Map<String, Object?> defaults = const {}}) {
+    return ConfigWire(
       apiKey: 'test-key',
       env: 'dev',
       baseUrl: 'http://localhost:8090',
@@ -78,7 +78,7 @@ void main() {
           postedBody = req.body;
           return http.Response('{"accepted":1,"status":202}', 202);
         }
-        expect(req.headers['X-ConfigNest-Key'], equals('test-key'));
+        expect(req.headers['X-ConfigWire-Key'], equals('test-key'));
         return http.Response(
           fetch200(values: {'flag_bool': false, 'flag_str': 'live'}),
           200,
@@ -193,7 +193,7 @@ void main() {
         gets++;
         return http.Response(fetch200(), 200);
       });
-      final cn = ConfigNest(
+      final cn = ConfigWire(
         apiKey: 'test-key',
         env: 'dev',
         baseUrl: 'http://localhost:8090',
@@ -267,7 +267,7 @@ void main() {
         await Future<void>.delayed(const Duration(seconds: 30));
         return http.Response(fetch200(), 200);
       });
-      final cn = ConfigNest(
+      final cn = ConfigWire(
         apiKey: 'test-key',
         env: 'dev',
         baseUrl: 'http://localhost:8090',

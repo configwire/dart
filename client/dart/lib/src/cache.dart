@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-/// Pure-Dart file-JSON cache for the ConfigNest SDK (todo 12).
+/// Pure-Dart file-JSON cache for the ConfigWire SDK (todo 12).
 ///
 /// On-disk schema (all four keys always present after a successful fetch):
 ///

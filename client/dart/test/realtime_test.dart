@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:config_nest/config_nest.dart';
+import 'package:config_wire/config_wire.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
@@ -11,7 +11,7 @@ import 'package:test/test.dart';
 ///
 /// The stream side is a LOCAL `dart:io` HttpServer test double (no
 /// dependency on the Go server); the fetch side is a MockClient-backed
-/// ConfigNest (the updater's stream client is always real, so the two
+/// ConfigWire (the updater's stream client is always real, so the two
 /// sides never interfere). Every test uses a FRESH temp cache dir and
 /// disposes its client (no dangling Timers — a leak would hang the
 /// suite). All live waits are bounded (`.timeout`), so the suite
@@ -55,8 +55,8 @@ void main() {
     });
   }
 
-  ConfigNest makeClient(MockClient mock, String baseUrl) {
-    final cn = ConfigNest(
+  ConfigWire makeClient(MockClient mock, String baseUrl) {
+    final cn = ConfigWire(
       apiKey: 'test-key',
       env: 'dev',
       baseUrl: baseUrl,
@@ -121,7 +121,7 @@ void main() {
       () async {
         String? seenKey;
         final server = await startServer((req) async {
-          seenKey = req.headers.value('x-confignest-key');
+          seenKey = req.headers.value('x-configwire-key');
           final resp = req.response;
           resp.statusCode = 200;
           resp.bufferOutput = false;

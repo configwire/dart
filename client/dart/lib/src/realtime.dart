@@ -26,7 +26,7 @@ enum RealtimeStatus {
 /// with a poll fallback that guarantees eventual freshness.
 ///
 /// Transport: `GET {baseUrl}/api/v1/env/{env}/stream` with the
-/// `X-ConfigNest-Key` header. Frames are `event: config_update` with a
+/// `X-ConfigWire-Key` header. Frames are `event: config_update` with a
 /// JSON `data: {"version":N,"etag":"...","env":"..."}` payload.
 ///
 /// ## Staleness bound (the contract T17 relies on)
@@ -49,7 +49,7 @@ enum RealtimeStatus {
 /// * Unexpected stream close triggers reconnect with backoff
 ///   1s, 2s, 4s, … capped at 30s. A non-200 status (e.g. 401 bad key)
 ///   surfaces via [status]/[lastError] WITHOUT throwing out of [connect].
-/// * [onRefresh] (wired by `ConfigNest.connectRealtime` to a forced
+/// * [onRefresh] (wired by `ConfigWire.connectRealtime` to a forced
 ///   `fetchAndActivate`) is invoked fire-and-forget per valid event.
 ///   Overlapping refreshes are last-wins (Dart is single-threaded; no
 ///   lock, no deadlock) — same discipline as `fetchAndActivate` itself.
@@ -61,7 +61,7 @@ enum RealtimeStatus {
 /// [connect] starts one `Timer.periodic` + one stream loop.
 /// [disconnect] cancels both and closes the owned stream client.
 /// Forgetting [disconnect] leaks a periodic timer that keeps the
-/// isolate alive — `ConfigNest.dispose()` calls it automatically, and
+/// isolate alive — `ConfigWire.dispose()` calls it automatically, and
 /// tests MUST dispose every client (a dangling timer shows up as a
 /// suite that never exits).
 class RealtimeUpdater {
@@ -75,10 +75,10 @@ class RealtimeUpdater {
   }) : _streamClient = streamClient ?? http.Client(),
        _ownsClient = streamClient == null;
 
-  /// Base URL of the ConfigNest server (no trailing slash needed).
+  /// Base URL of the ConfigWire server (no trailing slash needed).
   final String baseUrl;
 
-  /// SDK key, sent ONLY as the `X-ConfigNest-Key` header, never logged.
+  /// SDK key, sent ONLY as the `X-ConfigWire-Key` header, never logged.
   final String apiKey;
 
   /// Environment slug appended to `/api/v1/env/{env}/stream`.
@@ -89,7 +89,7 @@ class RealtimeUpdater {
   final Duration pollInterval;
 
   /// Called (fire-and-forget, errors swallowed) on every valid
-  /// `config_update` event AND on every poll tick. `ConfigNest`
+  /// `config_update` event AND on every poll tick. `ConfigWire`
   /// wires this to `() => fetchAndActivate(force: true)` + conditional
   /// `onUpdate` emit. Return value is ignored here.
   final Future<void> Function()? onRefresh;
@@ -203,7 +203,7 @@ class RealtimeUpdater {
           '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/env/$env/stream',
         );
         final req = http.Request('GET', uri)
-          ..headers['X-ConfigNest-Key'] = apiKey
+          ..headers['X-ConfigWire-Key'] = apiKey
           ..headers['Accept'] = 'text/event-stream';
         final resp = await _streamClient.send(req).timeout(
           const Duration(seconds: 10),

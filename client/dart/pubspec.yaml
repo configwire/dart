@@ -1,5 +1,5 @@
-name: config_nest
-description: Pure-Dart ConfigNest client (fetch, cache, typed getters, realtime). Scaffold for todos 12/14.
+name: config_wire
+description: Pure-Dart ConfigWire client (fetch, cache, typed getters, realtime). Scaffold for todos 12/14.
 version: 0.1.0
 
 environment:

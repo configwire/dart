@@ -21,9 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
-      - run: cd client/dart && dart pub get
-      - run: cd client/dart && dart analyze
-      - run: cd client/dart && dart test
+      - run: cd client/configwire && dart pub get
+      - run: cd client/configwire && dart analyze
+      - run: cd client/configwire && dart test
 
   checks:
     runs-on: ubuntu-latest

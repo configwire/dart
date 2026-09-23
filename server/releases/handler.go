@@ -24,7 +24,7 @@ import (
 // a concurrent double-publish with the same baseVersion into exactly one
 // 200 + one 409 (the loser re-reads the fresh max under the lock), so
 // versions are never oversold. Cross-process serialization is out of
-// scope: ConfigNest runs as one binary.
+// scope: ConfigWire runs as one binary.
 var writeMu sync.Mutex
 
 // Register mounts the admin releases routes. All routes bind

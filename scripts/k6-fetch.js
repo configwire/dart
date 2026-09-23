@@ -9,7 +9,7 @@
 // same targets (100rps fetch / 50rps exposure / 60s / same thresholds).
 //
 // Usage:
-//   GATE_KEY=<sdk-key> k6 run --summary-export=/tmp/cn-t16-summary.json scripts/k6-fetch.js
+//   GATE_KEY=<sdk-key> k6 run --summary-export=/tmp/cw-t16-summary.json scripts/k6-fetch.js
 //   BASE (optional): base URL, default http://127.0.0.1:8106
 //   ENV_SLUG (optional): default dev
 //

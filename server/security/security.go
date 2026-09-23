@@ -1,5 +1,5 @@
 // Package security stamps baseline response-hardening headers on the
-// ConfigNest API surface (plan todo 16).
+// ConfigWire API surface (plan todo 16).
 //
 // OWNERSHIP: this helper is called ONLY from the request paths owned by
 // the releases, stats, and fetch packages (their files). server/main.go

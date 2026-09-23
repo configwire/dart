@@ -223,7 +223,7 @@ func RequireSDKKey(re *core.RequestEvent) (*core.Record, error) {
 	if err != nil {
 		return denied()
 	}
-	// O(n) scan over sdk_keys is fine at ConfigNest scale (tens of keys);
+	// O(n) scan over sdk_keys is fine at ConfigWire scale (tens of keys);
 	// revisit with an indexed prefix query if key counts ever grow.
 	for _, r := range recs {
 		if r.GetString("prefix") != prefix {

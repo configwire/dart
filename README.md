@@ -28,7 +28,7 @@ make serve
 
 That is shorthand for `cd server && go run . serve` (default
 `127.0.0.1:8090`, data in `server/pb_data`). Flags pass through Go,
-not make: `cd server && go run . serve --http 127.0.0.1:8109 --dir /tmp/cn-pbdata`.
+not make: `cd server && go run . serve --http 127.0.0.1:8109 --dir /tmp/cw-pbdata`.
 
 ## Quickstart (scratch run, port 8109)
 
@@ -37,9 +37,9 @@ Copy-paste verbatim; every command below was executed in order for the
 T18 proof (log: `.omo/evidence/task-18-confignest.log`).
 
 ```bash
-mkdir -p /tmp/cn-qs && cd server
-go run . superuser upsert admin@example.com password123 --dir /tmp/cn-qs/pbdata
-(go run . serve --http 127.0.0.1:8109 --dir /tmp/cn-qs/pbdata > /tmp/cn-qs/serve.log 2>&1 &)
+mkdir -p /tmp/cw-qs && cd server
+go run . superuser upsert admin@example.com password123 --dir /tmp/cw-qs/pbdata
+(go run . serve --http 127.0.0.1:8109 --dir /tmp/cw-qs/pbdata > /tmp/cw-qs/serve.log 2>&1 &)
 sleep 12
 curl -s http://127.0.0.1:8109/hello
 TOKEN=$(curl -s -X POST http://127.0.0.1:8109/api/collections/_superusers/auth-with-password -H 'Content-Type: application/json' -d '{"identity":"admin@example.com","password":"password123"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
@@ -62,7 +62,7 @@ Expected tail: publish `{"version":1,...}`, fetch `{"version":1,...}`,
 events `{"accepted":2,...}`, stats `{"fetches":1,"exposures":1,...,"flagFound":true,"total":2,"rates":{"control":1},"sources":{"events":2,"rollups":0},"approximate":false,...}` (full shape in `docs/CONTRACT.md` section 5).
 
 Cleanup: `kill $(lsof -ti:8109)` (receipt: `curl` refuses + `lsof`
-empty), then `rm -rf /tmp/cn-qs`.
+empty), then `rm -rf /tmp/cw-qs`.
 
 ## SDK fetch
 
@@ -82,20 +82,20 @@ answers `304` empty.
 ```dart
 import 'package:config_wire/config_wire.dart';
 
-final cn = ConfigWire(
+final cw = ConfigWire(
   apiKey: 'YOUR_SDK_KEY', // sent as X-ConfigWire-Key, never printed
   env: 'dev',
   baseUrl: 'http://127.0.0.1:8090',
   defaults: {'launch_flag': false},
-  cacheFile: '/tmp/cn-cache.json', // default is cwd-relative
+  cacheFile: '/tmp/cw-cache.json', // default is cwd-relative
 );
-await cn.ensureInitialized();
-await cn.fetchAndActivate();
-final on = cn.getBool('launch_flag');
-await cn.dispose();
+await cw.ensureInitialized();
+await cw.fetchAndActivate();
+final on = cw.getBool('launch_flag');
+await cw.dispose();
 ```
 
-Realtime: `cn.connectRealtime()` opens SSE plus a 15min poll fallback,
+Realtime: `cw.connectRealtime()` opens SSE plus a 15min poll fallback,
 so freshness is at most `pollInterval` plus one fetch on every path.
 See `client/dart/example/main.dart` for a runnable demo.
 

@@ -1,6 +1,6 @@
 package migrations
 
-// ConfigNest retention rollups (plan todo 15, ADDITIVE only).
+// ConfigWire retention rollups (plan todo 15, ADDITIVE only).
 //
 // Adds the event_daily collection that the server/purge job upserts into
 // BEFORE deleting raw events older than 30d. Daily aggregates live to 90d.
@@ -20,7 +20,7 @@ import (
 )
 
 // Stable collection id for the daily rollup table.
-const colEventDaily = "cn_event_daily"
+const colEventDaily = "cw_event_daily"
 
 func init() {
 	m.Register(func(app core.App) error {

@@ -14,7 +14,7 @@ Future<void> main() async {
   final cache = Platform.environment['CN_CACHE'];
   final live = Platform.environment['CN_LIVE'] == '1';
 
-  final cn = ConfigWire(
+  final cw = ConfigWire(
     apiKey: apiKey,
     env: env,
     baseUrl: baseUrl,
@@ -25,17 +25,17 @@ Future<void> main() async {
   );
 
   // ignore: avoid_print
-  print('welcome=${cn.getString('welcome')} enabled=${cn.getBool('enabled')}');
+  print('welcome=${cw.getString('welcome')} enabled=${cw.getBool('enabled')}');
 
   if (live) {
-    await cn.ensureInitialized();
+    await cw.ensureInitialized();
     // NOTE: values printed, apiKey never printed.
     // ignore: avoid_print
     print(
-      'live_fetch status=${cn.lastFetchStatus} version=${cn.version} '
-      'etag=${cn.etag} launch_flag=${cn.getBool('launch_flag')} '
-      'welcome=${cn.getString('welcome')} variants=${cn.getVariants()}',
+      'live_fetch status=${cw.lastFetchStatus} version=${cw.version} '
+      'etag=${cw.etag} launch_flag=${cw.getBool('launch_flag')} '
+      'welcome=${cw.getString('welcome')} variants=${cw.getVariants()}',
     );
   }
-  await cn.dispose();
+  await cw.dispose();
 }

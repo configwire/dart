@@ -1,11 +1,11 @@
-# ConfigWire Wire Contract (frozen)
+# ConfigWire Wire Contract
 
 ConfigWire-native wire. No external parity claims.
 
 Conventions used below:
 
 - `{env}` is the environment slug (for example `dev`).
-- SDK auth header on SDK paths: `X-ConfigNest-Key: <full opaque key>`.
+- SDK auth header on SDK paths: `X-ConfigWire-Key: <full opaque key>`.
 - Admin paths use superuser auth (`Authorization: <token>`, bare, Bearer optional).
 - `Ref` cites the handler source that owns each shape.
 
@@ -40,7 +40,7 @@ while unambiguous slugs keep working without it. Ref:
 - `variants`: one entry per flag targeted by at least one experiment row (first row in snapshot id order wins); flags with no targeting experiment have no entry. Anonymous or default-variant fallthrough is recorded as `""`. Ref: `:152-178`.
 - `fetchAt`: server time, RFC3339Nano.
 - Gzip when the client sends `Accept-Encoding: gzip`. Ref: `:87`.
-- CORS `Access-Control-Allow-Origin: *` by default, or `CONFIGNEST_CORS_ORIGIN` when set. Ref: `:76-83,279-281`.
+- CORS `Access-Control-Allow-Origin: *` by default, or `CONFIGWIRE_CORS_ORIGIN` when set. Ref: `:76-83,279-281`.
 - `OPTIONS /api/v1/env/{env}/config` answers `204` with `Allow-Methods`, `Allow-Headers`, `Max-Age: 86400`. Ref: `:93-101`.
 
 ### 1b. Empty release (env has no release row yet) — `200`, never 404
@@ -362,46 +362,24 @@ Rollup-before-delete runs in the same op (upsert then delete; a crash
 between them double-counts only the in-flight bucket on re-run, and a
 clean re-run converges to `deleted: 0`). Ref: `server/purge/purge.go:70-83,124-182`.
 
-## 11. ConfigWire wire v2 (breaking rebrand)
+## History
 
-Sections 1-10 above are the frozen v1 contract: their shapes, examples,
-and `X-ConfigNest-Key` / `CONFIGNEST_CORS_ORIGIN` spellings are
-byte-identical history and stay valid as a record of v1 clients. This
-section documents only what the ConfigWire rename changed.
+Pre-rebrand (v1, ConfigNest) spellings are dead. The old SDK header
+`X-ConfigNest-Key` is not read and answers
+`401 Missing or invalid SDK key.` by design — no compat shim. The old
+env var `CONFIGNEST_CORS_ORIGIN` is ignored (set
+`CONFIGWIRE_CORS_ORIGIN`). `cn-`-prefixed keys are never issued and
+never match (the first-8-chars prefix rule is unchanged). Stored
+collection ids are `cw_*` now (migrated from `cn_*` with identical
+values; migration filenames are unchanged, so existing databases open
+unchanged). Current names: Go module `configwire`, Dart package
+`config_wire` (`class ConfigWire`, default cache
+`.config_wire_<env>-cache.json`); the old `confignest` / `config_nest` /
+`ConfigNest` import paths fail loudly (compiler/analyzer), never
+silently. Admin session keys are `cw_admin_*` with no legacy fallback.
+Stale `.config_nest_*-cache.json` Dart cache files are never read again
+(delete them or leave them; the cache rebuilds on the next fetch).
 
-### What changed
-
-- SDK auth header is `X-ConfigWire-Key: <full opaque key>` on every SDK
-  path (fetch, ingest, stream). The old `X-ConfigNest-Key` header is
-  not read and answers `401 Missing or invalid SDK key.` by design —
-  no compat shim. Ref: `server/ingest/ingest.go:47` (`HeaderKey`).
-- CORS origin env is `CONFIGWIRE_CORS_ORIGIN` (single origin, default
-  `*`). The legacy `CONFIGNEST_CORS_ORIGIN` is still honored as a
-  fallback with a one-line server deprecation warning. Ref:
-  `server/fetch/fetch.go:87-95`. Preflight `Allow-Headers` advertises
-  `X-ConfigWire-Key, If-None-Match`. Ref: `:84`.
-- Admin key prefix is `cw-` (the first-8-chars prefix rule is
-  unchanged); `cn-`-prefixed keys are never issued and never match.
-  Admin localStorage keys are `cw_admin_*` (legacy `cn_admin_*` values
-  are migrated once, then deleted). Ref: `server/pb_public/app.js`.
-- Go module is `configwire`; Dart package is `config_wire`
-  (`class ConfigWire`, default cache `.config_wire_<env>-cache.json`).
-  Old import paths fail loudly (compiler/analyzer), never silently.
-- Display name is ConfigWire (admin UI, README, doc titles).
-
-### What did NOT change
-
-- ETag rule: `hex(sha256(version + ":" + snapshot))[:16]`, served
-  verbatim in the body and the `ETag` header; `304` on exact
-  `If-None-Match` match only (sections 1a/1c).
-- Snapshot schema, publish/rollback shapes, the section 8
-  status-code index, and the auth/env/attrs order on every path.
-- Stored collection ids (`cn_projects`, `cn_environments`, …) and
-  migration file names: byte-identical, so existing databases open
-  unchanged.
-
-### Rotation
-
-Reissue `cw-` keys, revoke the old rows, and prove the break with the
-old-header `401`: procedure in `docs/ROTATION.md` (same semantics as
-`docs/SECURITY.md` section 2).
+Rotation procedure (reissue `cw-` keys, revoke the old rows, prove the
+break with the old-header `401`) lives in `docs/ROTATION.md` (same
+semantics as `docs/SECURITY.md` section 2).

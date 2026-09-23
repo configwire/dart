@@ -14,8 +14,8 @@ Key facts (landed code, todos 5-7):
   compare, `revoked` check, env-scope check.
 - Missing, unknown, revoked, or env-mismatched keys answer `401`
   `Missing or invalid SDK key.` on fetch, ingest, and stream.
-- Admin UI migrates `cn_admin_*` localStorage to `cw_admin_*` on load
-  (copy-if-new-absent, then delete): at most one silent re-login.
+- Admin session keys are `cw_admin_*` localStorage (memory-first copy;
+  logout clears both).
 - Orphaned old Dart `.config_nest_*-cache.json` files are harmless; the
   cache rebuilds on the next fetch (schema unchanged).
 
@@ -138,8 +138,8 @@ Receipt: `curl $BASE/hello` refuses and `lsof -ti:8120` is empty.
   to `package:config_wire/config_wire.dart`; the client already sends
   `X-ConfigWire-Key`. Delete stale `.config_nest_*-cache.json` files or
   leave them; they are never read again.
-- Admin UI: first load migrates the stored session automatically
-  (at most one silent re-login). An empty or missing token lands on the
+- Admin UI: first load restores the stored session from localStorage.
+  An empty or missing token lands on the
   login form; a garbage token shows an error toast and stays in the
   shell (pre-existing PocketBase 403 behavior, unchanged by the
   rebrand).

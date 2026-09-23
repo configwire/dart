@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-/// Pure-Dart file-JSON cache for the ConfigWire SDK (todo 12).
-///
 /// On-disk schema (all four keys always present after a successful fetch):
 ///
 /// ```json
@@ -39,7 +37,6 @@ class CacheData {
         'variants': variants,
       };
 
-  /// Returns null when [json] is not a well-formed cache document.
   static CacheData? fromJson(Map<String, Object?> json) {
     final etag = json['etag'];
     final version = json['version'];
@@ -74,7 +71,6 @@ class CacheData {
   }
 }
 
-/// Decodes one JSON string into [CacheData], or null when malformed.
 /// Used to keep `dart:convert` referenced in this model-only library.
 CacheData? cacheDataFromJsonString(String raw) {
   try {

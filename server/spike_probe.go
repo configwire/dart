@@ -21,7 +21,6 @@ import (
 // Never production: GET /stream authenticates via ingest.RequireSDKKey.
 const spikeSDKKey = "spike"
 
-// registerSpikeRoutes mounts the todo-2 spike endpoints. Called from OnServe in main.go.
 // NOTE (todo 10): the spike GET /api/v1/env/{env}/config was REMOVED here —
 // the real SDK delivery endpoint (server/fetch) owns that path now. Spike
 // /stream + /spike/publish stay for T14.
@@ -37,11 +36,8 @@ func spikeCheckKey(re *core.RequestEvent) error {
 	return nil
 }
 
-// spikeStream is GET /api/v1/env/:env/stream — long-lived SSE hold.
 // Order (same as fetch/ingest): 401 (key) -> 404 (env) / 400 (ambiguous
 // slug) -> 401 (env scope).
-// After auth + SSE headers, sends `: ping` keepalive comments every 20s
-// until the client disconnects (request context done) or a 10min cap.
 // Emits NO canned config_update event (avoids stale-event churn; freshness
 // is covered by the documented 15min poll fallback).
 // Lifecycle: the loop runs inline on the request goroutine — no per-
@@ -88,11 +84,8 @@ func spikeStream(re *core.RequestEvent) error {
 	}
 }
 
-// spikePublish is POST /api/v1/spike/publish/:clientId — QA-ONLY hook, never
-// production. Still gated by the hardcoded spike key (not SDK keys); used by
-// live QA to push a probe message through the PocketBase native realtime
-// broker to a client subscribed to topic config_<env>. Uses re.App, never a
-// captured app. Publish-triggered fan-out to /stream is out of scope.
+// QA-ONLY hook, never production. Still gated by the hardcoded spike key
+// (not SDK keys). Publish-triggered fan-out to /stream is out of scope.
 func spikePublish(re *core.RequestEvent) error {
 	if err := spikeCheckKey(re); err != nil {
 		return err

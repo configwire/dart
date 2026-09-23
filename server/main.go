@@ -39,7 +39,6 @@ func checkFlagKey(key string) error {
 	return nil
 }
 
-// countProjectFlags returns the number of flags rows for a project.
 // Exact count-query equivalent:
 //
 //	SELECT COUNT(*) FROM flags WHERE project = '<projectId>'
@@ -62,7 +61,7 @@ func countProjectFlags(app core.App, project string) (int64, error) {
 
 func registerConfigwireHooks(app core.App) {
 	// Releases are immutable: rollback republishes the old snapshot
-	// as a NEW row (todo 8). Deny every update path.
+	// as a NEW row (todo 8).
 	releasesImmutable := errors.New("releases are immutable: publish a new release instead")
 	app.OnRecordUpdate("releases").BindFunc(func(e *core.RecordEvent) error {
 		return releasesImmutable
@@ -74,7 +73,6 @@ func registerConfigwireHooks(app core.App) {
 		return releasesImmutable
 	})
 
-	// Flag key shape on create and update.
 	app.OnRecordCreate("flags").BindFunc(func(e *core.RecordEvent) error {
 		if err := checkFlagKey(e.Record.GetString("key")); err != nil {
 			return err
@@ -148,33 +146,23 @@ func main() {
 	ingest.EnableWAL(app)
 
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
-		// registers new "GET /hello" route
 		se.Router.GET("/hello", func(re *core.RequestEvent) error {
 			return re.String(200, "Hello world!")
 		})
 
-		// INGEST (todo 9) — analytics events write path.
 		ingest.Register(se)
 
-		// RELEASES (todo 8) — versioning heart: publish immutable +
-		// rollback-as-new with baseVersion guard.
 		releases.Register(se)
 
-		// FETCH (todo 10) — SDK delivery: latest release + evaluation.
-		// Replaces the todo-2 spike GET /config (removed from
-		// spike_probe.go); spike /stream + /spike/publish stay for T14.
 		fetch.Register(se)
 
-		// STATS (todo 11) — admin read-model over ingested events.
 		stats.Register(se)
 
-		// PURGE (todo 15) — retention: 30d raw events, 90d daily rollups.
 		purge.Register(se)
 
-		// SPIKE (todo 2) — skeleton candidate, not production
 		registerSpikeRoutes(se)
 
-		// ADMIN UI SHELL (todo 13) — static files only; dynamic data via
+		// Static files only; dynamic data via
 		// fetch calls from pb_public/app.js. Mounted LAST on /{path...}
 		// with indexFallback so /api/* (registered above) keeps
 		// precedence: unknown /api/* paths still answer 404 JSON, while

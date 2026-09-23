@@ -29,7 +29,7 @@ fail() { FAIL=$((FAIL + 1)); echo "FAIL: $1"; }
 
 SU_EMAIL="e2e-t17@example.com"
 SU_PASS="e2e-t17-super-secret-01"
-SDK_KEY="e2e-t17-key-0123456789abcdef"
+SDK_KEY="cw-e2e17-key-0123456789abcdef"
 E2E_UID="e2e-user-7"
 DEAD_PORT="8199"
 
@@ -158,9 +158,9 @@ echo "v1 etag=$ETAG_V1"
 echo "--- STAGE 2: fetch platform=ios appVersion=2.1.0 ---"
 FQ="uid=$E2E_UID&platform=ios&appVersion=2.1.0"
 CODE1=$(curl -s -o /tmp/cn-t17-fetch1.json -w "%{http_code}" --max-time 10 \
-  "$BASE_URL/api/v1/env/e2e/config?$FQ" -H "X-ConfigNest-Key: $SDK_KEY" 2>/dev/null || echo "000")
+  "$BASE_URL/api/v1/env/e2e/config?$FQ" -H "X-ConfigWire-Key: $SDK_KEY" 2>/dev/null || echo "000")
 CODE2=$(curl -s -o /tmp/cn-t17-fetch2.json -w "%{http_code}" --max-time 10 \
-  "$BASE_URL/api/v1/env/e2e/config?$FQ" -H "X-ConfigNest-Key: $SDK_KEY" 2>/dev/null || echo "000")
+  "$BASE_URL/api/v1/env/e2e/config?$FQ" -H "X-ConfigWire-Key: $SDK_KEY" 2>/dev/null || echo "000")
 [ "$CODE1" = "200" ] && [ "$CODE2" = "200" ] && pass "fetch 200 x2" || fail "fetch 200 x2 ($CODE1/$CODE2)"
 python3 - <<'EOF' && pass "typed values EXACT (string/number/bool/json)" || fail "typed values EXACT"
 import json, sys
@@ -191,7 +191,7 @@ cp /tmp/cn-t17-fetch1.json /tmp/cn-t17-fetch-stage2.json
 echo "--- STAGE 3: 1 fetch + 3 exposures -> stats ---"
 EV='{"events":[{"kind":"fetch","flag":"exp_bool","variant":"","userHash":"aaaabbbbccccdddd"},{"kind":"exposure","flag":"exp_bool","variant":"control","userHash":"aaaabbbbccccdddd"},{"kind":"exposure","flag":"exp_bool","variant":"control","userHash":"bbbbccccddddeeee"},{"kind":"exposure","flag":"exp_bool","variant":"treatment","userHash":"ccccddddeeeeffff"}]}'
 CODE=$(curl -s -o /tmp/cn-t17-ev.json -w "%{http_code}" --max-time 10 -X POST \
-  "$BASE_URL/api/v1/env/e2e/events" -H "X-ConfigNest-Key: $SDK_KEY" \
+  "$BASE_URL/api/v1/env/e2e/events" -H "X-ConfigWire-Key: $SDK_KEY" \
   -H "Content-Type: application/json" -d "$EV" 2>/dev/null || echo "000")
 [ "$CODE" = "202" ] && pass "ingest 202 (1 fetch + 3 exposures)" || fail "ingest (code $CODE)"
 sleep 3  # batcher flush lag (~1s, T9 note)
@@ -337,7 +337,7 @@ CODE="$(su_post "$BASE_URL/api/v1/admin/env/e2e/publish" '{"note":"t17 v2 breaki
 python3 -c "import json,sys; sys.exit(0 if json.load(open('/tmp/cn-t17-pub2.json')).get('version')==2 else 1)" \
   && pass "publish v2 version==2" || fail "publish v2 version==2"
 curl -s -o /tmp/cn-t17-fetch-v2.json --max-time 10 \
-  "$BASE_URL/api/v1/env/e2e/config?$FQ" -H "X-ConfigNest-Key: $SDK_KEY" 2>/dev/null || true
+  "$BASE_URL/api/v1/env/e2e/config?$FQ" -H "X-ConfigWire-Key: $SDK_KEY" 2>/dev/null || true
 python3 - <<'EOF' && pass "fetch v2: new json value + rules intact" || fail "fetch v2 values"
 import json, sys
 d = json.load(open('/tmp/cn-t17-fetch-v2.json'))
@@ -360,7 +360,7 @@ d = json.load(open('/tmp/cn-t17-rb.json'))
 sys.exit(0 if (d.get('version') == 3 and d.get('etag') != '$ETAG_V1') else 1)
 EOF
 curl -s -o /tmp/cn-t17-fetch-v3.json --max-time 10 \
-  "$BASE_URL/api/v1/env/e2e/config?$FQ" -H "X-ConfigNest-Key: $SDK_KEY" 2>/dev/null || true
+  "$BASE_URL/api/v1/env/e2e/config?$FQ" -H "X-ConfigWire-Key: $SDK_KEY" 2>/dev/null || true
 python3 - <<'EOF' && pass "fetch v3: v1 values byte-equal + version 3" || fail "fetch v3 restored"
 import json, sys
 old = json.load(open('/tmp/cn-t17-fetch-stage2.json'))
@@ -377,7 +377,7 @@ EOF
 # ---- STAGE 6 (negative): dead port fails cleanly ------------------------------
 echo "--- STAGE 6 (negative): fetch against dead port ---"
 NEG_OUT="$(curl -s -o /tmp/cn-t17-neg.json -w "HTTP %{http_code}" --max-time 5 \
-  "http://127.0.0.1:$DEAD_PORT/api/v1/env/e2e/config?$FQ" -H "X-ConfigNest-Key: $SDK_KEY" 2>&1)"
+  "http://127.0.0.1:$DEAD_PORT/api/v1/env/e2e/config?$FQ" -H "X-ConfigWire-Key: $SDK_KEY" 2>&1)"
 NEG_EXIT=$?
 if [ "$NEG_EXIT" -ne 0 ]; then
   echo "NEGATIVE OK: fetch against dead port 127.0.0.1:$DEAD_PORT failed cleanly (curl exit $NEG_EXIT) — is the server down? start it and retry."

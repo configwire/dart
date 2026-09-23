@@ -1,4 +1,4 @@
-// ConfigNest load + security gate (plan todo 16).
+// ConfigWire load + security gate (plan todo 16).
 //
 // k6 scenario: 100rps SDK fetch + 50rps exposure ingest, sustained 60s.
 // Thresholds: fetch p95 < 200ms, overall http_req_failed < 1%.
@@ -24,7 +24,7 @@ const BASE = __ENV.BASE || 'http://127.0.0.1:8106';
 const ENV_SLUG = __ENV.ENV_SLUG || 'dev';
 const KEY = __ENV.GATE_KEY;
 if (!KEY) {
-  throw new Error('GATE_KEY env is required (X-ConfigNest-Key value)');
+  throw new Error('GATE_KEY env is required (X-ConfigWire-Key value)');
 }
 
 const fetchTrend = new Trend('fetch_duration', true);
@@ -62,7 +62,7 @@ export const options = {
   gracefulStop: '30s',
 };
 
-const headers = { 'X-ConfigNest-Key': KEY };
+const headers = { 'X-ConfigWire-Key': KEY };
 
 export function fetchFn() {
   const uid = `gate-user-${__VU}-${__ITER}`;

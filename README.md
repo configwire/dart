@@ -46,12 +46,12 @@ TOKEN=$(curl -s -X POST http://127.0.0.1:8109/api/collections/_superusers/auth-w
 PROJ=$(curl -s -X POST http://127.0.0.1:8109/api/collections/projects/records -H "Authorization: $TOKEN" -H 'Content-Type: application/json' -d '{"name":"demo"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
 ENV=$(curl -s -X POST http://127.0.0.1:8109/api/collections/environments/records -H "Authorization: $TOKEN" -H 'Content-Type: application/json' -d "{\"project\":\"$PROJ\",\"slug\":\"dev\"}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
 curl -s -X POST http://127.0.0.1:8109/api/collections/flags/records -H "Authorization: $TOKEN" -H 'Content-Type: application/json' -d "{\"project\":\"$PROJ\",\"key\":\"launch_flag\",\"type\":\"bool\",\"defaultValue\":false}"
-KEY=qs-demo-key-001
-python3 -c 'import hashlib; print(hashlib.sha256(b"qs-demo-key-001").hexdigest())'
-curl -s -X POST http://127.0.0.1:8109/api/collections/sdk_keys/records -H "Authorization: $TOKEN" -H 'Content-Type: application/json' -d "{\"prefix\":\"qs-demo-\",\"hash\":\"<sha256-of-key>\",\"env\":\"$ENV\",\"rateLimit\":100000}"
+KEY=cw-qs-demo-key-001
+python3 -c 'import hashlib; print(hashlib.sha256(b"cw-qs-demo-key-001").hexdigest())'
+curl -s -X POST http://127.0.0.1:8109/api/collections/sdk_keys/records -H "Authorization: $TOKEN" -H 'Content-Type: application/json' -d "{\"prefix\":\"cw-qs-de\",\"hash\":\"<sha256-of-key>\",\"env\":\"$ENV\",\"rateLimit\":100000}"
 curl -s -X POST http://127.0.0.1:8109/api/v1/admin/env/dev/publish -H "Authorization: $TOKEN" -H 'Content-Type: application/json' -d '{"note":"first release","baseVersion":0}'
-curl -s http://127.0.0.1:8109/api/v1/env/dev/config -H 'X-ConfigNest-Key: qs-demo-key-001'
-curl -s -X POST http://127.0.0.1:8109/api/v1/env/dev/events -H 'X-ConfigNest-Key: qs-demo-key-001' -H 'Content-Type: application/json' -d '{"events":[{"kind":"fetch","flag":"launch_flag"},{"kind":"exposure","flag":"launch_flag","variant":"control","userHash":"abc123"}]}'
+curl -s http://127.0.0.1:8109/api/v1/env/dev/config -H 'X-ConfigWire-Key: cw-qs-demo-key-001'
+curl -s -X POST http://127.0.0.1:8109/api/v1/env/dev/events -H 'X-ConfigWire-Key: cw-qs-demo-key-001' -H 'Content-Type: application/json' -d '{"events":[{"kind":"fetch","flag":"launch_flag"},{"kind":"exposure","flag":"launch_flag","variant":"control","userHash":"abc123"}]}'
 sleep 3
 curl -s "http://127.0.0.1:8109/api/v1/admin/env/dev/stats?flag=launch_flag&since=7d" -H "Authorization: $TOKEN"
 kill $(lsof -ti:8109)
@@ -67,7 +67,7 @@ empty), then `rm -rf /tmp/cn-qs`.
 ## SDK fetch
 
 ```bash
-curl -s 'http://127.0.0.1:8090/api/v1/env/dev/config?uid=user-7&platform=ios' -H 'X-ConfigNest-Key: <sdk-key>'
+curl -s 'http://127.0.0.1:8090/api/v1/env/dev/config?uid=user-7&platform=ios' -H 'X-ConfigWire-Key: <sdk-key>'
 ```
 
 ```json
@@ -80,10 +80,10 @@ answers `304` empty.
 ## Dart snippet
 
 ```dart
-import 'package:config_nest/config_nest.dart';
+import 'package:config_wire/config_wire.dart';
 
-final cn = ConfigNest(
-  apiKey: 'YOUR_SDK_KEY', // sent as X-ConfigNest-Key, never printed
+final cn = ConfigWire(
+  apiKey: 'YOUR_SDK_KEY', // sent as X-ConfigWire-Key, never printed
   env: 'dev',
   baseUrl: 'http://127.0.0.1:8090',
   defaults: {'launch_flag': false},

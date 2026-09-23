@@ -81,8 +81,8 @@ binary plus operator procedure.
   `Access-Control-Allow-Origin`, default **`*`** (Flutter/web dev).
 - Production: set `CONFIGWIRE_CORS_ORIGIN=https://app.example.com`
   (single origin, plain header, no infra). The legacy
-  `CONFIGNEST_CORS_ORIGIN` is still honored as a fallback with a
-  one-line server deprecation warning. `OPTIONS` preflight →
+  `CONFIGNEST_CORS_ORIGIN` is ignored (breaking rebrand: set the new
+  var). `OPTIONS` preflight →
   `204` with `Allow-Methods/Headers` + 86400s max-age.
 
 ## 6. Admin — superuser-only

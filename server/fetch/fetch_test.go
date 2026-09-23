@@ -201,19 +201,19 @@ func TestAllowHeadersIsConfigWire(t *testing.T) {
 	}
 }
 
-// TestCorsOriginDualRead covers the todo-5 CORS rename: CONFIGWIRE_ is
-// primary, CONFIGNEST_ legacy fallback (with deprecation log), else "*".
-// New var present -> legacy ignored silently.
+// TestCorsOriginSingleRead covers the zero-residue CORS behavior:
+// only CONFIGWIRE_CORS_ORIGIN is read, else "*". The legacy
+// CONFIGNEST_CORS_ORIGIN is ignored entirely (breaking rebrand).
 func TestCorsOriginDualRead(t *testing.T) {
 	t.Setenv("CONFIGWIRE_CORS_ORIGIN", "https://app.example.com")
 	t.Setenv("CONFIGNEST_CORS_ORIGIN", "https://legacy.example.com")
 	if got := corsOrigin(); got != "https://app.example.com" {
-		t.Fatalf("both set: corsOrigin = %q, want new var to win", got)
+		t.Fatalf("both set: corsOrigin = %q, want new var (legacy ignored)", got)
 	}
 
 	t.Setenv("CONFIGWIRE_CORS_ORIGIN", "")
-	if got := corsOrigin(); got != "https://legacy.example.com" {
-		t.Fatalf("legacy only: corsOrigin = %q, want legacy fallback", got)
+	if got := corsOrigin(); got != "*" {
+		t.Fatalf("legacy only: corsOrigin = %q, want dev default (legacy ignored)", got)
 	}
 
 	t.Setenv("CONFIGNEST_CORS_ORIGIN", "")

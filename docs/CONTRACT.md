@@ -1,6 +1,6 @@
-# ConfigNest Wire Contract (frozen)
+# ConfigWire Wire Contract (frozen)
 
-ConfigNest-native wire. No external parity claims.
+ConfigWire-native wire. No external parity claims.
 
 Conventions used below:
 

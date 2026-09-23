@@ -1,4 +1,4 @@
-# ConfigNest Security — Operator Guide
+# ConfigWire Security — Operator Guide
 
 Single-binary deployment model (<10k DAU / <100rps). No WAF, no paid
 infra, no external auth provider: the controls below are all in the

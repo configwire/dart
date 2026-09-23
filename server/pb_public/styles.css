@@ -131,6 +131,7 @@ main { padding: var(--space-6); max-width: 1200px; width: 100%; margin: 0 auto; 
 .card-head h2 { scroll-margin-top: 84px; }
 h2[id] { scroll-margin-top: 84px; }
 .auth { max-width: 440px; margin: var(--space-8) auto; box-shadow: var(--shadow); }
+.login-banner { max-width: 100%; height: auto; display: block; border-radius: var(--radius-sm); }
 .auth form { flex-direction: column; align-items: stretch; }
 .scope { position: sticky; top: calc(var(--topbar-h) + var(--space-3)); z-index: 20; box-shadow: var(--shadow-sm); }
 

@@ -1,4 +1,6 @@
-# ConfigNest
+![ConfigWire — Real-Time Remote Configuration](server/pb_public/img/banner.png)
+
+# ConfigWire
 
 Single-binary remote config: publish immutable releases, evaluate flags
 per SDK fetch, ingest fetch/exposure events, query stats, stream updates

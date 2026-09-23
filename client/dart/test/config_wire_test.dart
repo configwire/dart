@@ -16,7 +16,7 @@ void main() {
   late String cachePath;
 
   setUp(() async {
-    tmp = await Directory.systemTemp.createTemp('cn-t12-test-');
+    tmp = await Directory.systemTemp.createTemp('cw-t12-test-');
     cachePath = '${tmp.path}/cache.json';
   });
 
@@ -49,7 +49,7 @@ void main() {
 
   group('defaults getters (pre-existing behavior)', () {
     test('seeded defaults read back with correct types', () async {
-      final cn = clientWith(
+      final client = clientWith(
         MockClient((_) async => http.Response('{}', 500)),
         defaults: {
           'flag_bool': true,
@@ -59,14 +59,14 @@ void main() {
           'flag_json': {'a': 1},
         },
       );
-      addTearDown(cn.dispose);
-      expect(cn.getBool('flag_bool'), isTrue);
-      expect(cn.getString('flag_str'), equals('hello'));
-      expect(cn.getInt('flag_int'), equals(7));
-      expect(cn.getDouble('flag_double'), equals(2.5));
-      expect(cn.getJSON('flag_json'), equals({'a': 1}));
-      expect(cn.getBool('missing'), isFalse);
-      expect(cn.getString('missing'), isEmpty);
+      addTearDown(client.dispose);
+      expect(client.getBool('flag_bool'), isTrue);
+      expect(client.getString('flag_str'), equals('hello'));
+      expect(client.getInt('flag_int'), equals(7));
+      expect(client.getDouble('flag_double'), equals(2.5));
+      expect(client.getJSON('flag_json'), equals({'a': 1}));
+      expect(client.getBool('missing'), isFalse);
+      expect(client.getString('missing'), isEmpty);
     });
   });
 
@@ -85,16 +85,16 @@ void main() {
           headers: {'ETag': 'abc123'},
         );
       });
-      final cn = clientWith(mock, defaults: {'flag_bool': true});
-      addTearDown(cn.dispose);
+      final client = clientWith(mock, defaults: {'flag_bool': true});
+      addTearDown(client.dispose);
 
-      expect(await cn.fetchAndActivate(), isTrue);
-      expect(cn.lastFetchStatus, equals(FetchStatus.success));
-      expect(cn.fetchTime, isNotNull);
-      expect(cn.getBool('flag_bool'), isFalse);
-      expect(cn.getString('flag_str'), equals('live'));
-      expect(cn.etag, equals('abc123'));
-      expect(cn.version, equals(1));
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(client.lastFetchStatus, equals(FetchStatus.success));
+      expect(client.fetchTime, isNotNull);
+      expect(client.getBool('flag_bool'), isFalse);
+      expect(client.getString('flag_str'), equals('live'));
+      expect(client.etag, equals('abc123'));
+      expect(client.version, equals(1));
 
       // Cache file on disk contains all four keys.
       final onDisk = jsonDecode(await File(cachePath).readAsString()) as Map;
@@ -123,14 +123,14 @@ void main() {
         expect(req.headers['If-None-Match'], equals('etag-1'));
         return http.Response('', 304);
       });
-      final cn = clientWith(mock);
-      addTearDown(cn.dispose);
+      final client = clientWith(mock);
+      addTearDown(client.dispose);
 
-      expect(await cn.fetchAndActivate(), isTrue);
-      expect(await cn.fetchAndActivate(), isFalse);
-      expect(cn.lastFetchStatus, equals(FetchStatus.cached));
-      expect(cn.getBool('flag_bool'), isTrue);
-      expect(cn.etag, equals('etag-1'));
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(await client.fetchAndActivate(), isFalse);
+      expect(client.lastFetchStatus, equals(FetchStatus.cached));
+      expect(client.getBool('flag_bool'), isTrue);
+      expect(client.etag, equals('etag-1'));
     });
 
     test('offline-cache: network failure keeps stale cache, no throw', () async {
@@ -146,25 +146,25 @@ void main() {
       expect(await seeder.fetchAndActivate(), isTrue);
 
       final offline = MockClient((_) async => throw const SocketException('down'));
-      final cn = clientWith(offline);
-      addTearDown(cn.dispose);
-      await cn.ensureInitialized();
+      final client = clientWith(offline);
+      addTearDown(client.dispose);
+      await client.ensureInitialized();
       // ensureInitialized already attempted (and failed) a fetch; a direct
       // retry must also fail soft.
-      expect(await cn.fetchAndActivate(), isFalse);
-      expect(cn.lastFetchStatus, equals(FetchStatus.error));
-      expect(cn.getString('flag_str'), equals('cached-live'));
+      expect(await client.fetchAndActivate(), isFalse);
+      expect(client.lastFetchStatus, equals(FetchStatus.error));
+      expect(client.getString('flag_str'), equals('cached-live'));
     });
 
     test('cold-defaults: offline with no cache serves in-app defaults, no throw', () async {
       final offline = MockClient((_) async => throw const SocketException('down'));
-      final cn = clientWith(offline, defaults: {'welcome': 'hello', 'enabled': true});
-      addTearDown(cn.dispose);
-      await cn.ensureInitialized();
-      expect(cn.lastFetchStatus, equals(FetchStatus.error));
-      expect(cn.getString('welcome'), equals('hello'));
-      expect(cn.getBool('enabled'), isTrue);
-      expect(cn.fetchTime, isNull);
+      final client = clientWith(offline, defaults: {'welcome': 'hello', 'enabled': true});
+      addTearDown(client.dispose);
+      await client.ensureInitialized();
+      expect(client.lastFetchStatus, equals(FetchStatus.error));
+      expect(client.getString('welcome'), equals('hello'));
+      expect(client.getBool('enabled'), isTrue);
+      expect(client.fetchTime, isNull);
     });
 
     test('type-mismatch-fallback: wrong-typed live value falls back', () async {
@@ -177,11 +177,11 @@ void main() {
           200,
         );
       });
-      final cn = clientWith(mock);
-      addTearDown(cn.dispose);
-      expect(await cn.fetchAndActivate(), isTrue);
-      expect(cn.getBool('flag_bool', fallback: true), isTrue);
-      expect(cn.getInt('flag_int'), equals(42));
+      final client = clientWith(mock);
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(client.getBool('flag_bool', fallback: true), isTrue);
+      expect(client.getInt('flag_int'), equals(42));
     });
 
     test('throttle-skip: second immediate fetch returns false with throttled status', () async {
@@ -193,7 +193,7 @@ void main() {
         gets++;
         return http.Response(fetch200(), 200);
       });
-      final cn = ConfigWire(
+      final client = ConfigWire(
         apiKey: 'test-key',
         env: 'dev',
         baseUrl: 'http://localhost:8090',
@@ -201,10 +201,10 @@ void main() {
         cacheFile: cachePath,
         minimumFetchInterval: const Duration(hours: 12),
       );
-      addTearDown(cn.dispose);
-      expect(await cn.fetchAndActivate(), isTrue);
-      expect(await cn.fetchAndActivate(), isFalse);
-      expect(cn.lastFetchStatus, equals(FetchStatus.throttled));
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(await client.fetchAndActivate(), isFalse);
+      expect(client.lastFetchStatus, equals(FetchStatus.throttled));
       expect(gets, equals(1));
     });
 
@@ -217,10 +217,10 @@ void main() {
         gets++;
         return http.Response(fetch200(etag: 'e$gets', version: gets), 200);
       });
-      final cn = clientWith(mock);
-      addTearDown(cn.dispose);
-      expect(await cn.fetchAndActivate(), isTrue);
-      expect(await cn.fetchAndActivate(), isTrue);
+      final client = clientWith(mock);
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(await client.fetchAndActivate(), isTrue);
       expect(gets, equals(2));
     });
   });
@@ -236,12 +236,12 @@ void main() {
         if (calls == 1) return http.Response(fetch200(values: {'k': 'good'}), 200);
         return http.Response('this is not json{{{', 200);
       });
-      final cn = clientWith(mock);
-      addTearDown(cn.dispose);
-      expect(await cn.fetchAndActivate(), isTrue);
-      expect(await cn.fetchAndActivate(), isFalse);
-      expect(cn.lastFetchStatus, equals(FetchStatus.error));
-      expect(cn.getString('k'), equals('good'));
+      final client = clientWith(mock);
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(await client.fetchAndActivate(), isFalse);
+      expect(client.lastFetchStatus, equals(FetchStatus.error));
+      expect(client.getString('k'), equals('good'));
     });
 
     test('500 keeps cached values with error status', () async {
@@ -254,12 +254,12 @@ void main() {
         if (calls == 1) return http.Response(fetch200(values: {'k': 'good'}), 200);
         return http.Response('boom', 500);
       });
-      final cn = clientWith(mock);
-      addTearDown(cn.dispose);
-      expect(await cn.fetchAndActivate(), isTrue);
-      expect(await cn.fetchAndActivate(), isFalse);
-      expect(cn.lastFetchStatus, equals(FetchStatus.error));
-      expect(cn.getString('k'), equals('good'));
+      final client = clientWith(mock);
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(await client.fetchAndActivate(), isFalse);
+      expect(client.lastFetchStatus, equals(FetchStatus.error));
+      expect(client.getString('k'), equals('good'));
     });
 
     test('fetchTimeout honored: hanging server maps to error, no throw', () async {
@@ -267,7 +267,7 @@ void main() {
         await Future<void>.delayed(const Duration(seconds: 30));
         return http.Response(fetch200(), 200);
       });
-      final cn = ConfigWire(
+      final client = ConfigWire(
         apiKey: 'test-key',
         env: 'dev',
         baseUrl: 'http://localhost:8090',
@@ -277,10 +277,10 @@ void main() {
         minimumFetchInterval: Duration.zero,
         fetchTimeout: const Duration(milliseconds: 200),
       );
-      addTearDown(cn.dispose);
-      expect(await cn.fetchAndActivate(), isFalse);
-      expect(cn.lastFetchStatus, equals(FetchStatus.error));
-      expect(cn.getString('d'), equals('default'));
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isFalse);
+      expect(client.lastFetchStatus, equals(FetchStatus.error));
+      expect(client.getString('d'), equals('default'));
     });
 
     test('concurrent fetchAndActivate x2: both complete, values consistent (last-wins)', () async {
@@ -291,14 +291,14 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 20));
         return http.Response(fetch200(values: {'k': 'v'}), 200);
       });
-      final cn = clientWith(mock);
-      addTearDown(cn.dispose);
-      final results = await Future.wait([cn.fetchAndActivate(), cn.fetchAndActivate()]);
+      final client = clientWith(mock);
+      addTearDown(client.dispose);
+      final results = await Future.wait([client.fetchAndActivate(), client.fetchAndActivate()]);
       // No lock: both run to completion; last-completes-wins. Either
       // [true, true] (both 200) — never a throw, never torn state.
       expect(results, equals([true, true]));
-      expect(cn.getString('k'), equals('v'));
-      expect(cn.lastFetchStatus, equals(FetchStatus.success));
+      expect(client.getString('k'), equals('v'));
+      expect(client.lastFetchStatus, equals(FetchStatus.success));
     });
 
     test('anonymous "" variant omitted from every variant view', () async {
@@ -314,13 +314,13 @@ void main() {
           200,
         );
       });
-      final cn = clientWith(mock);
-      addTearDown(cn.dispose);
-      expect(await cn.fetchAndActivate(), isTrue);
-      expect(cn.getVariant('flag_a'), isNull);
-      expect(cn.getVariant('flag_b'), equals('treatment'));
-      expect(cn.getVariants(), equals({'flag_b': 'treatment'}));
-      expect(cn.getVariants().containsKey('flag_a'), isFalse);
+      final client = clientWith(mock);
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(client.getVariant('flag_a'), isNull);
+      expect(client.getVariant('flag_b'), equals('treatment'));
+      expect(client.getVariants(), equals({'flag_b': 'treatment'}));
+      expect(client.getVariants().containsKey('flag_a'), isFalse);
     });
 
     test('uid query param sent and userHash is sha256hex16', () async {
@@ -334,9 +334,9 @@ void main() {
         gotUid = req.url.queryParameters['uid'];
         return http.Response(fetch200(), 200);
       });
-      final cn = clientWith(mock);
-      addTearDown(cn.dispose);
-      await cn.fetchAndActivate(userId: 'qa-user-7');
+      final client = clientWith(mock);
+      addTearDown(client.dispose);
+      await client.fetchAndActivate(userId: 'qa-user-7');
       expect(gotUid, equals('qa-user-7'));
       expect(gotHash, equals(sha256Hex16('qa-user-7')));
       expect(gotHash, hasLength(16));

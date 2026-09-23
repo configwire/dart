@@ -5,14 +5,14 @@ import 'package:config_wire/config_wire.dart';
 /// Defaults demo (cold path) + live-fetch demo (used by T12 live smoke).
 ///
 /// Live mode (env vars; apiKey printed NEVER — values only):
-///   CN_BASE_URL=http://127.0.0.1:8102 CN_API_KEY=`<sdk-key>` CN_ENV=dev \
-///     CN_CACHE=/tmp/cn-t12-smoke/cache.json dart run example/main.dart
+///   CW_BASE_URL=http://127.0.0.1:8102 CW_API_KEY=`<sdk-key>` CW_ENV=dev \
+///     CW_CACHE=/tmp/cw-t12-smoke/cache.json dart run example/main.dart
 Future<void> main() async {
-  final baseUrl = Platform.environment['CN_BASE_URL'] ?? 'http://localhost:8090';
-  final apiKey = Platform.environment['CN_API_KEY'] ?? 'demo-key';
-  final env = Platform.environment['CN_ENV'] ?? 'dev';
-  final cache = Platform.environment['CN_CACHE'];
-  final live = Platform.environment['CN_LIVE'] == '1';
+  final baseUrl = Platform.environment['CW_BASE_URL'] ?? 'http://localhost:8090';
+  final apiKey = Platform.environment['CW_API_KEY'] ?? 'demo-key';
+  final env = Platform.environment['CW_ENV'] ?? 'dev';
+  final cache = Platform.environment['CW_CACHE'];
+  final live = Platform.environment['CW_LIVE'] == '1';
 
   final cw = ConfigWire(
     apiKey: apiKey,

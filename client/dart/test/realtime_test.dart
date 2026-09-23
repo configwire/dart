@@ -21,7 +21,7 @@ void main() {
   late String cachePath;
 
   setUp(() async {
-    tmp = await Directory.systemTemp.createTemp('cn-t14-test-');
+    tmp = await Directory.systemTemp.createTemp('cw-t14-test-');
     cachePath = '${tmp.path}/cache.json';
   });
 
@@ -56,7 +56,7 @@ void main() {
   }
 
   ConfigWire makeClient(MockClient mock, String baseUrl) {
-    final cn = ConfigWire(
+    final client = ConfigWire(
       apiKey: 'test-key',
       env: 'dev',
       baseUrl: baseUrl,
@@ -65,8 +65,8 @@ void main() {
       cacheFile: cachePath,
       minimumFetchInterval: Duration.zero,
     );
-    addTearDown(cn.dispose);
-    return cn;
+    addTearDown(client.dispose);
+    return client;
   }
 
   /// Starts a local SSE double. [onStream] handles each
@@ -138,21 +138,21 @@ void main() {
         });
 
         final gets = <int>[];
-        final cn = makeClient(
+        final client = makeClient(
           fetchMock(body: fetch200(), gets: gets),
           'http://127.0.0.1:${server.port}',
         );
-        await cn.connectRealtime(
+        await client.connectRealtime(
           pollInterval: const Duration(minutes: 10),
         );
 
-        final snap = await cn.onUpdate.first.timeout(
+        final snap = await client.onUpdate.first.timeout(
           const Duration(seconds: 10),
         );
         expect(snap['live_flag'], isTrue);
-        expect(cn.version, equals(2));
-        expect(cn.etag, equals('e2'));
-        expect(cn.getBool('live_flag'), isTrue);
+        expect(client.version, equals(2));
+        expect(client.etag, equals('e2'));
+        expect(client.getBool('live_flag'), isTrue);
         // Stream carried the SDK key header; exactly one refresh fired
         // (poll is 10min away, so the event caused it).
         expect(seenKey, equals('test-key'));
@@ -170,7 +170,7 @@ void main() {
         await probe.close();
 
         final gets = <int>[];
-        final cn = makeClient(
+        final client = makeClient(
           fetchMock(
             body: fetch200(values: {'live_flag': true}),
             gets: gets,
@@ -178,25 +178,25 @@ void main() {
           'http://127.0.0.1:$deadPort',
         );
         // Must not throw despite the refused stream connection.
-        await cn.connectRealtime(
+        await client.connectRealtime(
           pollInterval: const Duration(milliseconds: 100),
         );
 
-        final snap = await cn.onUpdate.first.timeout(
+        final snap = await client.onUpdate.first.timeout(
           const Duration(seconds: 10),
         );
         expect(snap['live_flag'], isTrue);
-        expect(cn.getBool('live_flag'), isTrue);
+        expect(client.getBool('live_flag'), isTrue);
         expect(gets.isNotEmpty, isTrue);
         // The stream side surfaced an error status (connection refused)
         // instead of throwing out of connect.
         final deadline =
             DateTime.now().add(const Duration(seconds: 10));
-        while (cn.realtime?.lastError == null &&
+        while (client.realtime?.lastError == null &&
             DateTime.now().isBefore(deadline)) {
           await Future<void>.delayed(const Duration(milliseconds: 50));
         }
-        expect(cn.realtime?.lastError, isNotNull);
+        expect(client.realtime?.lastError, isNotNull);
       },
     );
 
@@ -224,18 +224,18 @@ void main() {
         });
 
         final gets = <int>[];
-        final cn = makeClient(
+        final client = makeClient(
           fetchMock(body: fetch200(), gets: gets),
           'http://127.0.0.1:${server.port}',
         );
         final seen = <Map<String, Object?>>[];
-        final sub = cn.onUpdate.listen(seen.add);
+        final sub = client.onUpdate.listen(seen.add);
         addTearDown(sub.cancel);
-        await cn.connectRealtime(
+        await client.connectRealtime(
           pollInterval: const Duration(minutes: 10),
         );
 
-        final snap = await cn.onUpdate.first.timeout(
+        final snap = await client.onUpdate.first.timeout(
           const Duration(seconds: 10),
         );
         expect(snap['live_flag'], isTrue);
@@ -258,28 +258,28 @@ void main() {
         });
 
         final gets = <int>[];
-        final cn = makeClient(
+        final client = makeClient(
           fetchMock(body: fetch200(), gets: gets),
           'http://127.0.0.1:${server.port}',
         );
         // Must not throw despite the 401 stream.
-        await cn.connectRealtime(
+        await client.connectRealtime(
           pollInterval: const Duration(minutes: 10),
         );
 
         final deadline =
             DateTime.now().add(const Duration(seconds: 10));
-        while (cn.realtime?.status != RealtimeStatus.error &&
+        while (client.realtime?.status != RealtimeStatus.error &&
             DateTime.now().isBefore(deadline)) {
           await Future<void>.delayed(const Duration(milliseconds: 50));
         }
-        expect(cn.realtime?.status, equals(RealtimeStatus.error));
-        expect(cn.realtime?.lastError, contains('401'));
-        expect(cn.realtime?.isConnected, isFalse);
+        expect(client.realtime?.status, equals(RealtimeStatus.error));
+        expect(client.realtime?.lastError, contains('401'));
+        expect(client.realtime?.isConnected, isFalse);
         // No refresh fired: only the stream failed, poll is 10min out.
         expect(gets, isEmpty);
-        await cn.disconnectRealtime();
-        expect(cn.realtime, isNull);
+        await client.disconnectRealtime();
+        expect(client.realtime, isNull);
       },
     );
   });

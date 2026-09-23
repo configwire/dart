@@ -98,7 +98,6 @@ const (
 
 func TestVectors(t *testing.T) {
 	table := []vector{
-		// ---- type coercion (number/string/bool/json incl. mismatches) ----
 		{name: "coerce/number_match", kind: "eval", flagJSON: fNum, rulesJSON: `[{"id":"r1","conditions":[{"field":"custom.credits","op":">=","value":100}],"value":200}]`, ctxJSON: ctxAndroid, wantJSON: `200`},
 		{name: "coerce/number_float_match", kind: "eval", flagJSON: fNum, rulesJSON: `[{"id":"r1","conditions":[{"field":"custom.tier","op":"==","value":"pro"}],"value":19.99}]`, ctxJSON: ctxAndroid, wantJSON: `19.99`},
 		{name: "coerce/number_string_mismatch_fallthrough", kind: "eval", flagJSON: fNum, rulesJSON: `[{"id":"r1","conditions":[{"field":"platform","op":"==","value":"android"}],"value":"lots"}]`, ctxJSON: ctxAndroid, wantJSON: `0`},
@@ -109,12 +108,10 @@ func TestVectors(t *testing.T) {
 		{name: "coerce/json_object_match", kind: "eval", flagJSON: fJSON, rulesJSON: `[{"id":"r1","conditions":[{"field":"platform","op":"==","value":"android"}],"value":{"a":2,"b":[1,2]}}]`, ctxJSON: ctxAndroid, wantJSON: `{"a":2,"b":[1,2]}`},
 		{name: "coerce/json_array_match", kind: "eval", flagJSON: fJSON, rulesJSON: `[{"id":"r1","conditions":[{"field":"custom.trial","op":"==","value":true}],"value":["x","y"]}]`, ctxJSON: ctxAndroid, wantJSON: `["x","y"]`},
 		{name: "coerce/json_scalar_mismatch_fallthrough", kind: "eval", flagJSON: fJSON, rulesJSON: `[{"id":"r1","conditions":[{"field":"platform","op":"==","value":"android"}],"value":42}]`, ctxJSON: ctxAndroid, wantJSON: `{"a":1}`},
-		// ---- first-true-condition ordering (3 ordered rules) ----
 		{name: "order/first_wins_over_second", kind: "eval", flagJSON: fOrd, rulesJSON: orderedRules, ctxJSON: ctxAndroid, wantJSON: `"first"`},
 		{name: "order/second_wins_when_first_false", kind: "eval", flagJSON: fOrd, rulesJSON: orderedRules, ctxJSON: ctxIOSPro, wantJSON: `"second"`},
 		{name: "order/third_wins_when_first_two_false", kind: "eval", flagJSON: fOrd, rulesJSON: orderedRules, ctxJSON: ctxIOSFreeEN, wantJSON: `"third"`},
 		{name: "order/none_match_returns_default", kind: "eval", flagJSON: fOrd, rulesJSON: orderedRules, ctxJSON: ctxIOSFreeFR, wantJSON: `"base"`},
-		// ---- semver ops ----
 		{name: "semver/lt_match", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"appVersion","op":"<","value":"1.2.4"}],"value":"new"}]`, ctxJSON: ctxAndroid, wantJSON: `"new"`},
 		{name: "semver/lte_equal_match", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"appVersion","op":"<=","value":"1.2.3"}],"value":"new"}]`, ctxJSON: ctxAndroid, wantJSON: `"new"`},
 		{name: "semver/eq_match", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"appVersion","op":"==","value":"1.2.3"}],"value":"new"}]`, ctxJSON: ctxAndroid, wantJSON: `"new"`},
@@ -125,33 +122,27 @@ func TestVectors(t *testing.T) {
 		{name: "semver/regex_match", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"appVersion","op":"regex","value":"^1\\.2\\."}],"value":"new"}]`, ctxJSON: ctxAndroid, wantJSON: `"new"`},
 		{name: "semver/invalid_target_fallthrough", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"appVersion","op":"<","value":"1.2.x"}],"value":"new"}]`, ctxJSON: ctxAndroid, wantJSON: `"old"`},
 		{name: "semver/not_semver_ctx_fallthrough", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"appVersion","op":"<","value":"2.0.0"}],"value":"new"}]`, ctxJSON: ctxBadVer, wantJSON: `"old"`},
-		// ---- locale/country ----
 		{name: "locale/exact_match", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"locale","op":"==","value":"en-US"}],"value":"new"}]`, ctxJSON: ctxAndroid, wantJSON: `"new"`},
 		{name: "locale/contains_match", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"locale","op":"contains","value":"en"}],"value":"new"}]`, ctxJSON: ctxAndroid, wantJSON: `"new"`},
 		{name: "locale/mismatch_fallthrough", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"locale","op":"==","value":"en-US"}],"value":"new"}]`, ctxJSON: ctxFR, wantJSON: `"old"`},
 		{name: "country/exact_match", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"country","op":"==","value":"US"}],"value":"new"}]`, ctxJSON: ctxAndroid, wantJSON: `"new"`},
 		{name: "country/mismatch_fallthrough", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"country","op":"==","value":"DE"}],"value":"new"}]`, ctxJSON: ctxAndroid, wantJSON: `"old"`},
-		// ---- platform ----
 		{name: "platform/android_match", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"platform","op":"==","value":"android"}],"value":"new"}]`, ctxJSON: ctxAndroid, wantJSON: `"new"`},
 		{name: "platform/ios_rule_android_ctx_fallthrough", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"platform","op":"==","value":"ios"}],"value":"new"}]`, ctxJSON: ctxAndroid, wantJSON: `"old"`},
 		{name: "platform/unknown_value_fallthrough", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"platform","op":"==","value":"android"}],"value":"new"}]`, ctxJSON: ctxUnknownPl, wantJSON: `"old"`},
 		{name: "platform/case_sensitive_fallthrough", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"platform","op":"==","value":"android"}],"value":"new"}]`, ctxJSON: ctxCasePlat, wantJSON: `"old"`},
-		// ---- percentile ----
 		{name: "percentile/full_range_always_matches", kind: "eval", flagJSON: fRoll, rulesJSON: `[{"id":"r1","conditions":[{"field":"percentile","op":"<=","value":9999,"seed":"rollout-1"}],"value":"in"}]`, ctxJSON: ctxAndroid, wantJSON: `"in"`},
 		{name: "percentile/oracle_band_matches", kind: "eval", flagJSON: fRoll, rulesJSON: `[{"id":"r1","conditions":[{"field":"percentile","op":"between","value":$BUCKET_PLACEHOLDER,"seed":"rollout-1"}],"value":"in"}]`, ctxJSON: ctxAndroid, wantJSON: `"in"`},
 		{name: "percentile/impossible_threshold_fallthrough", kind: "eval", flagJSON: fRoll, rulesJSON: `[{"id":"r1","conditions":[{"field":"percentile","op":"<=","value":-1,"seed":"rollout-1"}],"value":"in"}]`, ctxJSON: ctxAndroid, wantJSON: `"out"`},
 		{name: "percentile/missing_seed_fallthrough", kind: "eval", flagJSON: fRoll, rulesJSON: `[{"id":"r1","conditions":[{"field":"percentile","op":"<=","value":9999}],"value":"in"}]`, ctxJSON: ctxNoSeed, wantJSON: `"out"`},
 		{name: "percentile/between_full_range_matches", kind: "eval", flagJSON: fRoll, rulesJSON: `[{"id":"r1","conditions":[{"field":"percentile","op":"between","value":[0,9999],"seed":"rollout-1"}],"value":"in"}]`, ctxJSON: ctxAndroid, wantJSON: `"in"`},
-		// ---- unknown-attr fallthrough ----
 		{name: "unknown_attr/missing_custom_key", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"custom.vip","op":"==","value":true}],"value":"new"}]`, ctxJSON: ctxAndroid, wantJSON: `"old"`},
 		{name: "unknown_attr/unknown_op", kind: "eval", flagJSON: fOld, rulesJSON: `[{"id":"r1","conditions":[{"field":"platform","op":"FROBNICATE","value":"android"}],"value":"new"}]`, ctxJSON: ctxAndroid, wantJSON: `"old"`},
 		{name: "unknown_attr/empty_rules_default", kind: "eval", flagJSON: fOld, rulesJSON: `[]`, ctxJSON: ctxAndroid, wantJSON: `"old"`},
-		// ---- experiment assign ----
 		{name: "experiment/sticky_same_user_oracle", kind: "assign", experimentJSON: exp5050, userID: "sticky-sam", wantJSON: `$ORACLE`},
 		{name: "experiment/known_bucket_variant", kind: "assign", experimentJSON: exp5050, userID: "exp-rita", wantJSON: `$ORACLE`},
 		{name: "experiment/empty_user_fallthrough", kind: "assign", experimentJSON: exp5050, userID: "", wantJSON: `"control"`},
 		{name: "experiment/empty_variants_fallthrough", kind: "assign", experimentJSON: expEmpty, userID: "u-alex", wantJSON: `"control"`},
-		// ---- bucket formula ----
 		{name: "bucket/oracle_spot_check", kind: "bucket", bucketUser: "u-alex", bucketSeed: "rollout-1", wantJSON: `$BUCKETNUM`},
 	}
 	if len(table) < 40 {
@@ -264,7 +255,7 @@ func TestVectors(t *testing.T) {
 		}
 		for _, u := range fx.Users {
 			a1 := Assign(fx.Experiment, u)
-			a2 := Assign(fx.Experiment, u) // sticky re-check
+			a2 := Assign(fx.Experiment, u)
 			if a1 != a2 {
 				t.Errorf("sticky re-check flapped for %q: %q vs %q", u, a1, a2)
 			}

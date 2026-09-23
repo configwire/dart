@@ -58,7 +58,6 @@ import (
 	"strings"
 )
 
-// Value types a flag may carry.
 const (
 	TypeNumber = "number"
 	TypeString = "string"
@@ -66,7 +65,6 @@ const (
 	TypeJSON   = "json"
 )
 
-// Flag is a typed parameter with a server-side default.
 type Flag struct {
 	Key     string `json:"key"`
 	Type    string `json:"type"`
@@ -88,7 +86,6 @@ type Rule struct {
 	Value      any         `json:"value"`
 }
 
-// Context is the evaluation input for one SDK client.
 type Context struct {
 	UserID         string         `json:"userId"`
 	Platform       string         `json:"platform"`
@@ -99,8 +96,6 @@ type Context struct {
 	PercentileSeed string         `json:"percentileSeed"`
 }
 
-// Variant is one experiment arm with weight in basis points of 10000.
-//
 // Values (added todo 7, optional) holds per-flag overrides keyed by flag
 // key: Values[flag.Key]. Only EvaluateWithExperiment (experiment.go) reads
 // it; Assign/Bucket/Evaluate ignore it, so existing behavior is unchanged.
@@ -128,12 +123,10 @@ func Evaluate(flag Flag, rules []Rule, ctx Context) any {
 		if v, ok := coerce(r.Value, flag.Type); ok {
 			return v
 		}
-		// Type mismatch: skip rule, keep scanning.
 	}
 	return flag.Default
 }
 
-// MatchCondition reports whether one condition holds for ctx.
 // Unknown field/op, bad semver, missing seed/attr -> false.
 func MatchCondition(c Condition, ctx Context) bool {
 	return matchCondition(c, ctx)
@@ -313,7 +306,6 @@ func matchPercentile(c Condition, ctx Context) bool {
 // lexicographic), bools only ==/!=. Type mismatch -> false; contains and
 // regex require strings on both sides.
 func matchCustom(attr any, op string, target any) bool {
-	// contains/regex: strings only.
 	if op == "contains" || op == "regex" {
 		a, ok := attr.(string)
 		if !ok {
@@ -328,7 +320,6 @@ func matchCustom(attr any, op string, target any) bool {
 		}
 		return matchRegex(a, t)
 	}
-	// Numeric compare when both sides are numbers.
 	if af, ok := toNumber(attr); ok {
 		tf, ok := toNumber(target)
 		if !ok {
@@ -434,7 +425,6 @@ func isJSONObject(v any) bool {
 	case map[string]any:
 		return true
 	}
-	// Generalize: any map with a string kind key.
 	rv := reflect.ValueOf(v)
 	return rv.Kind() == reflect.Map && rv.Type().Key().Kind() == reflect.String
 }
@@ -535,7 +525,6 @@ func matchRegex(s, pattern string) (matched bool) {
 	return re.MatchString(s)
 }
 
-// semver is a parsed strict MAJOR.MINOR.PATCH version.
 type semver struct {
 	major, minor, patch int
 	pre                 string // raw prerelease ("" = release)
@@ -585,7 +574,6 @@ func parseSemver(s string) (semver, bool) {
 		}
 		rest = rest[:i]
 	}
-	// Split off -prerelease.
 	if i := strings.Index(rest, "-"); i >= 0 {
 		pre := rest[i+1:]
 		if !validDotIdents(pre, true) {
@@ -610,13 +598,12 @@ func parseSemver(s string) (semver, bool) {
 	return v, true
 }
 
-// parseSemverNum parses one strict numeric identifier.
 func parseSemverNum(s string) (int, bool) {
 	if s == "" {
 		return 0, false
 	}
 	if len(s) > 1 && s[0] == '0' {
-		return 0, false // no leading zeros
+		return 0, false
 	}
 	n := 0
 	for i := 0; i < len(s); i++ {
@@ -698,7 +685,6 @@ func comparePrerelease(a, b string) int {
 	return cmpInt(len(ai), len(bi))
 }
 
-// prereleaseNum parses an all-digit prerelease identifier.
 func prereleaseNum(s string) (int, bool) {
 	if s == "" {
 		return 0, false

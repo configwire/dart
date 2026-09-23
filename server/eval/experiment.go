@@ -32,8 +32,6 @@ func ValidateExperiment(exp Experiment) error {
 	return nil
 }
 
-// EvaluateWithExperiment layers an experiment overlay on Evaluate.
-//
 // Lookup rule: base = Evaluate(flag, rules, ctx). When status != "running"
 // the base is returned untouched with variant = exp.DefaultVariant
 // (covers draft, stopped, empty, and any unknown status string).

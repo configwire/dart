@@ -25,7 +25,7 @@ func TestExperimentValidateWeights(t *testing.T) {
 		t.Fatalf("50/50 bps must validate: %v", err)
 	}
 	bad := testExp5050()
-	bad.Variants[1].WeightBps = 4900 // sum 9900
+	bad.Variants[1].WeightBps = 4900
 	if err := ValidateExperiment(bad); err == nil {
 		t.Fatalf("9900-sum experiment must be rejected, got nil error")
 	}
@@ -69,7 +69,7 @@ func TestExperimentOverlayFallthrough(t *testing.T) {
 
 	absent := Experiment{
 		ID: "e", Seed: "exp-seed-1", DefaultVariant: "control",
-		Variants: []Variant{{Name: "control", WeightBps: 10000}}, // no Values map
+		Variants: []Variant{{Name: "control", WeightBps: 10000}},
 	}
 	if got, _ := EvaluateWithExperiment(flag, rules, ctx, absent, "running"); got != "rule-value" {
 		t.Errorf("absent values entry: want rule-value, got %v", got)

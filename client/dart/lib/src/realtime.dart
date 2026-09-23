@@ -86,6 +86,8 @@ class RealtimeUpdater {
 
   /// Poll fallback period. Default 15 minutes (plan contract); tests
   /// pass millisecond-scale values. Runs ALWAYS, stream up or down.
+  /// Values below 1s are silently clamped to 1s: `Timer.periodic` with
+  /// [Duration.zero] would otherwise fire continuously (event-loop storm).
   final Duration pollInterval;
 
   /// Called (fire-and-forget, errors swallowed) on every valid
@@ -103,6 +105,8 @@ class RealtimeUpdater {
   int _backoffAttempt = 0;
   Timer? _pollTimer;
   StreamSubscription<String>? _streamSub;
+  Completer<void>? _pendingReadDone;
+  int _generation = 0;
   bool _disposed = false;
 
   final StreamController<Map<String, Object?>> _notificationController =
@@ -130,11 +134,18 @@ class RealtimeUpdater {
   void connect() {
     if (_disposed) return;
     disconnectSync();
+    _generation++;
     _running = true;
     _status = RealtimeStatus.connecting;
-    _pollTimer = Timer.periodic(pollInterval, (_) => _pollTick());
+    _buf.clear();
+    final effectivePoll =
+        pollInterval < const Duration(seconds: 1)
+            ? const Duration(seconds: 1)
+            : pollInterval;
+    _pollTimer = Timer.periodic(effectivePoll, (_) => _pollTick());
+    final gen = _generation;
     // Fire-and-forget by design: the loop records errors on status.
-    unawaited(_runLoop());
+    unawaited(_runLoop(gen));
   }
 
   /// Stops the poll timer + the stream loop and closes the owned HTTP
@@ -147,14 +158,32 @@ class RealtimeUpdater {
 
   void disconnectSync() {
     _running = false;
+    _generation++;
+    _buf.clear();
     _pollTimer?.cancel();
     _pollTimer = null;
-    try {
-      _streamSub?.cancel();
-    } catch (_) {
-      // Cancel on a dead subscription must not throw.
-    }
+    final sub = _streamSub;
     _streamSub = null;
+    void completePending() {
+      final pending = _pendingReadDone;
+      if (pending != null && !pending.isCompleted) pending.complete();
+    }
+
+    if (sub == null) {
+      completePending();
+    } else {
+      try {
+        sub.cancel().then((_) {
+          // `cancel()` never fires onDone, so the pending `_readStream`
+          // `done` would hang forever and leak the `_runLoop`. Complete it
+          // here so the awaiting loop observes `_running == false` and exits.
+          completePending();
+        });
+      } catch (_) {
+        // Cancel on a dead subscription must not throw.
+        completePending();
+      }
+    }
     if (_status != RealtimeStatus.disconnected) {
       _status = RealtimeStatus.disconnected;
     }
@@ -195,12 +224,13 @@ class RealtimeUpdater {
     }
   }
 
-  Future<void> _runLoop() async {
-    while (_running && !_disposed) {
+  Future<void> _runLoop([int? generation]) async {
+    final gen = generation ?? _generation;
+    while (_running && !_disposed && gen == _generation) {
       try {
         _status = RealtimeStatus.connecting;
         final uri = Uri.parse(
-          '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/env/$env/stream',
+          '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/env/${Uri.encodeComponent(env)}/stream',
         );
         final req = http.Request('GET', uri)
           ..headers['X-ConfigWire-Key'] = apiKey
@@ -225,34 +255,42 @@ class RealtimeUpdater {
           } catch (_) {
             // Best effort drain; ignore.
           }
-          await _backoffWait();
+          await _backoffWait(gen);
           continue;
         }
         _status = RealtimeStatus.connected;
+        _lastError = null;
         _backoffAttempt = 0;
         await _readStream(resp);
         // Stream closed without disconnect(): unexpected close.
-        if (!_running || _disposed) return;
+        if (!_running || _disposed || gen != _generation) return;
         _lastError = 'stream closed by server';
         _status = RealtimeStatus.error;
-        await _backoffWait();
+        await _backoffWait(gen);
       } catch (e) {
-        if (!_running || _disposed) return;
+        if (!_running || _disposed || gen != _generation) return;
         // Network down, DNS, timeout, malformed baseUrl: surface only.
-        _lastError = '$e'.replaceAll(apiKey, '<redacted>');
+        // Guard empty key: ''.replaceAll would corrupt every message.
+        final raw = '$e';
+        _lastError = apiKey.isNotEmpty
+            ? raw.replaceAll(apiKey, '<redacted>')
+            : raw;
         _status = RealtimeStatus.error;
-        await _backoffWait();
+        await _backoffWait(gen);
       }
     }
   }
 
-  Future<void> _backoffWait() async {
+  Future<void> _backoffWait([int? generation]) async {
     // 1s, 2s, 4s, 8s, 16s, then capped at 30s.
     var seconds = 1 << _backoffAttempt;
     if (seconds > 30) seconds = 30;
     if (_backoffAttempt < 10) _backoffAttempt++;
     final deadline = DateTime.now().add(Duration(seconds: seconds));
-    while (_running && !_disposed && DateTime.now().isBefore(deadline)) {
+    while (_running &&
+        !_disposed &&
+        (generation == null || generation == _generation) &&
+        DateTime.now().isBefore(deadline)) {
       final remaining = deadline.difference(DateTime.now());
       final step = remaining > const Duration(milliseconds: 100)
           ? const Duration(milliseconds: 100)
@@ -284,7 +322,9 @@ class RealtimeUpdater {
       cancelOnError: false,
     );
     _streamSub = sub;
+    _pendingReadDone = done;
     return done.future.whenComplete(() {
+      if (identical(_pendingReadDone, done)) _pendingReadDone = null;
       if (identical(_streamSub, sub)) _streamSub = null;
       try {
         sub.cancel();

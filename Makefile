@@ -8,11 +8,11 @@ migrate:
 
 test:
 	cd server && go build ./... && go vet ./... && go test ./...
-	cd client/dart && dart analyze && dart test
+	cd client/configwire && dart analyze && dart test
 
 lint:
 	cd server && test -z "$$(gofmt -l .)" && go vet ./...
-	cd client/dart && dart analyze
+	cd client/configwire && dart analyze
 
 e2e:
 	bash scripts/e2e.sh

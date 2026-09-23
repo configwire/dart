@@ -3,8 +3,6 @@ import 'dart:io';
 
 import 'package:configwire/configwire.dart';
 
-/// Defaults demo (cold path) + live-fetch demo (used by T12 live smoke).
-///
 /// Caching is bring-your-own via the [CacheStore] seam. Omitting `store:`
 /// uses the default session-only [MemoryCacheStore] (no disk). For disk
 /// persistence, implement [CacheStore] yourself (example: [_JsonFileStore]
@@ -24,8 +22,6 @@ Future<void> main() async {
     env: env,
     baseUrl: baseUrl,
     defaults: {'welcome': 'hello', 'enabled': true, 'launch_flag': false},
-    // Omit `store:` for the default session-only memory cache.
-    // For disk persistence: `store: _JsonFileStore(env: env),`
     // Dev smoke: no throttle so repeated runs always hit the server.
     minimumFetchInterval: Duration.zero,
   );
@@ -46,8 +42,6 @@ Future<void> main() async {
   await cw.dispose();
 }
 
-/// Example disk-backed [CacheStore]: one JSON file per environment.
-///
 /// Pure `dart:io` + `dart:convert`, no extra dependencies. Load returns
 /// null on any miss/corruption (caller falls back to defaults); save
 /// overwrites the file.

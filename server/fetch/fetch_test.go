@@ -188,36 +188,26 @@ func TestEvaluateSnapshotControlPaths(t *testing.T) {
 	}
 }
 
-// TestAllowHeadersIsConfigWire guards the todo-5 preflight rename: the
-// fetch OPTIONS response must permit the new SDK key header (served via
+// TestAllowHeadersIsConfigWire guards the fetch preflight contract: the
+// fetch OPTIONS response must permit the SDK key header (served via
 // the allowHeaders const, also asserted live in
 // .omo/evidence/configwire-t5-wire.log).
 func TestAllowHeadersIsConfigWire(t *testing.T) {
 	if allowHeaders != "X-ConfigWire-Key, If-None-Match" {
 		t.Fatalf("allowHeaders = %q, want %q", allowHeaders, "X-ConfigWire-Key, If-None-Match")
 	}
-	if strings.Contains(allowHeaders, "ConfigNest") {
-		t.Fatalf("allowHeaders must not reference the old brand: %q", allowHeaders)
-	}
 }
 
-// TestCorsOriginSingleRead covers the zero-residue CORS behavior:
-// only CONFIGWIRE_CORS_ORIGIN is read, else "*". The legacy
-// The pre-rebrand CORS env var is ignored entirely (breaking rebrand).
-func TestCorsOriginDualRead(t *testing.T) {
+// TestCorsOriginSingleRead covers the CORS behavior:
+// only CONFIGWIRE_CORS_ORIGIN is read, else "*".
+func TestCorsOriginSingleRead(t *testing.T) {
 	t.Setenv("CONFIGWIRE_CORS_ORIGIN", "https://app.example.com")
-	t.Setenv("CONFIGNEST_CORS_ORIGIN", "https://legacy.example.com")
 	if got := corsOrigin(); got != "https://app.example.com" {
-		t.Fatalf("both set: corsOrigin = %q, want new var (legacy ignored)", got)
+		t.Fatalf("corsOrigin = %q, want configured origin", got)
 	}
 
 	t.Setenv("CONFIGWIRE_CORS_ORIGIN", "")
 	if got := corsOrigin(); got != "*" {
-		t.Fatalf("legacy only: corsOrigin = %q, want dev default (legacy ignored)", got)
-	}
-
-	t.Setenv("CONFIGNEST_CORS_ORIGIN", "")
-	if got := corsOrigin(); got != "*" {
-		t.Fatalf("neither set: corsOrigin = %q, want dev default", got)
+		t.Fatalf("unset: corsOrigin = %q, want dev default", got)
 	}
 }

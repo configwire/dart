@@ -47,9 +47,7 @@
 //   - CORS: every fetch response (including 304) sets
 //     Access-Control-Allow-Origin, default "*" for Flutter/web dev. Restrict
 //     in production with env CONFIGWIRE_CORS_ORIGIN=https://app.example.com
-//     (single origin, no paid infra, simple header). The legacy
-//     CONFIGNEST_CORS_ORIGIN is ignored (breaking rebrand: set the new
-//     var). An OPTIONS preflight
+//     (single origin, no paid infra, simple header). An OPTIONS preflight
 //     route answers 204 with Allow-Origin/Methods/Headers.
 package fetch
 
@@ -84,7 +82,6 @@ const allowHeaders = "X-ConfigWire-Key, If-None-Match"
 
 // corsOrigin returns the allowed origin for fetch responses: the
 // CONFIGWIRE_CORS_ORIGIN env value when set, else "*" (dev default).
-// The legacy CONFIGNEST_CORS_ORIGIN is ignored (breaking rebrand).
 func corsOrigin() string {
 	if v := os.Getenv("CONFIGWIRE_CORS_ORIGIN"); v != "" {
 		return v

@@ -48,7 +48,7 @@ func PickIndex(slug string, projects []string, project string) (int, error) {
 	return 0, nil
 }
 
-// Never silently picks the first of several rows.
+// Resolve maps a slug (+ optional project qualifier) to its record. Never silently picks the first of several rows.
 func Resolve(app core.App, slug, project string) (*core.Record, error) {
 	recs, err := app.FindAllRecords("environments")
 	if err != nil {
@@ -70,8 +70,9 @@ func Resolve(app core.App, slug, project string) (*core.Record, error) {
 	return cands[idx], nil
 }
 
-// The key's env IS the env, so slug collisions across projects cannot
-// misroute. Keys with no env set (legacy) fall back to unqualified Resolve.
+// ResolveForKey maps a slug through the SDK key's bound env. The key's env IS
+// the env, so slug collisions across projects cannot misroute. Keys with
+// no env set (legacy) fall back to unqualified Resolve.
 func ResolveForKey(app core.App, slug, keyEnvID string) (*core.Record, error) {
 	if keyEnvID == "" {
 		return Resolve(app, slug, "")

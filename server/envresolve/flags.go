@@ -4,17 +4,17 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// DB-free so (key, project) matching is unit-testable on fake rows.
+// FlagRow is a DB-free projection so (key, project) matching is unit-testable on fake rows.
 type FlagRow struct {
 	ID      string
 	Key     string
 	Project string
 }
 
-// Same key under another project never matches: stats/ingest must not
-// leak one project's flag identity into another's counts. First match
-// wins (flag keys are not unique per project; the write path only
-// enforces shape + cap).
+// MatchFlag resolves a flag key within one project only. Same key under another
+// project never matches: stats/ingest must not leak one project's flag
+// identity into another's counts. First match wins (flag keys are not
+// unique per project; the write path only enforces shape + cap).
 func MatchFlag(rows []FlagRow, key, project string) (string, bool) {
 	if key == "" || project == "" {
 		return "", false
@@ -27,8 +27,9 @@ func MatchFlag(rows []FlagRow, key, project string) (string, bool) {
 	return "", false
 }
 
-// A store failure yields a nil slice plus the error; callers treat an
-// empty result as "unknown flag" (zeros, 202).
+// FlagRows projects stored flags into matchable rows. A store failure yields
+// a nil slice plus the error; callers treat an empty result as "unknown
+// flag" (zeros, 202).
 func FlagRows(app core.App) ([]FlagRow, error) {
 	recs, err := app.FindAllRecords("flags")
 	if err != nil {

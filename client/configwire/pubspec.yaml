@@ -6,7 +6,6 @@ environment:
 dependencies:
   http: ^1.2.0
   crypto: ^3.0.0
-  hive_ce: ^2.20.0
 dev_dependencies:
   test: ^1.25.0
   lints: ^6.0.0

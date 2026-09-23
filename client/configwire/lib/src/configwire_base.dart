@@ -9,7 +9,6 @@ import 'realtime.dart';
 
 export 'cache.dart';
 export 'events.dart';
-export 'hive_store.dart';
 export 'realtime.dart';
 
 /// Result of the last fetch attempt.
@@ -37,9 +36,9 @@ enum FetchStatus {
 /// [fetchAndActivate] refreshes from the server. All reads are synchronous
 /// typed getters over the in-memory view.
 ///
-/// Persistence is bring-your-own: pass a [HiveCacheStore] over a
-/// host-opened Hive box (works on Dart VM, Flutter via `Hive.initFlutter`,
-/// and Web via IndexedDB). The default is an in-memory store (no disk).
+/// Persistence is bring-your-own: pass a [CacheStore] implementation
+/// to persist across restarts. The default is [MemoryCacheStore]
+/// (session only, no disk).
 ///
 /// Value layering: the in-memory view is `{...defaults, ...serverValues}`
 /// — in-app [defaults] are the underlay so a fresh env (server 200 with
@@ -87,10 +86,9 @@ class ConfigWire {
   final http.Client? _client;
   http.Client? _owned;
 
-  /// Cache persistence. When null at construction, an in-memory store
-  /// is used (session only, no disk); pass `HiveCacheStore(box: ...)`
-  /// over a host-opened Hive box for disk persistence on VM, Flutter,
-  /// or Web (IndexedDB).
+  /// Cache persistence. When null at construction, [MemoryCacheStore]
+  /// is used (session only, no disk); pass a [CacheStore]
+  /// implementation for disk persistence.
   final CacheStore _store;
 
   /// Minimum time between server fetches; `Duration.zero` disables

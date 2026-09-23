@@ -12,8 +12,7 @@ import 'dart:convert';
 ///
 /// `shared_preferences` was deliberately dropped: it is Flutter-only
 /// and would violate the pure-Dart rule. Persistence lives behind the
-/// [CacheStore] seam instead — Hive by default (see `hive_store.dart`),
-/// which serves VM disks and browser IndexedDB from one dependency.
+/// [CacheStore] seam instead, with the in-memory store as the default.
 ///
 /// Corrupt files (missing file, bad JSON, wrong shapes) load as `null` —
 /// the caller falls back to in-app defaults and never throws.

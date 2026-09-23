@@ -28,10 +28,7 @@ func (e AmbiguousError) Error() string {
 	return fmt.Sprintf("ambiguous env slug %q: it exists in %d projects; specify ?project=<projectId>", e.Slug, e.Count)
 }
 
-// PickIndex selects one of the project ids collected for a slug purely
-// (no I/O), so resolution policy is unit-testable. project == "" picks
-// the single candidate, or fails ambiguous when several share the slug;
-// a non-empty project qualifier picks its match, or fails not-found.
+// PickIndex is pure (no I/O), so resolution policy is unit-testable.
 // O(n) over same-slug rows (tens at most) — documented, v1-appropriate.
 func PickIndex(slug string, projects []string, project string) (int, error) {
 	if len(projects) == 0 {
@@ -51,10 +48,6 @@ func PickIndex(slug string, projects []string, project string) (int, error) {
 	return 0, nil
 }
 
-// Resolve looks up an environment by slug with an optional project
-// qualifier ("" = unqualified). Unknown slug (or qualifier matching
-// nothing) -> ErrNotFound; several envs sharing the slug with no (or a
-// non-matching, handled as not-found) qualifier -> AmbiguousError.
 // Never silently picks the first of several rows.
 func Resolve(app core.App, slug, project string) (*core.Record, error) {
 	recs, err := app.FindAllRecords("environments")
@@ -77,12 +70,8 @@ func Resolve(app core.App, slug, project string) (*core.Record, error) {
 	return cands[idx], nil
 }
 
-// ResolveForKey resolves the env for SDK-keyed routes (fetch, ingest,
-// stream) deterministically from the authenticated key record: the
-// key's env IS the env, so slug collisions across projects cannot
-// misroute. A key whose env slug differs from the requested slug ->
-// ErrScopeMismatch (401). Keys with no env set (legacy) fall back to
-// unqualified Resolve, where a real collision -> AmbiguousError (400).
+// The key's env IS the env, so slug collisions across projects cannot
+// misroute. Keys with no env set (legacy) fall back to unqualified Resolve.
 func ResolveForKey(app core.App, slug, keyEnvID string) (*core.Record, error) {
 	if keyEnvID == "" {
 		return Resolve(app, slug, "")
@@ -97,9 +86,7 @@ func ResolveForKey(app core.App, slug, keyEnvID string) (*core.Record, error) {
 	return env, nil
 }
 
-// ToRequestError maps a Resolve/ResolveForKey failure onto the
-// PocketBase request error shapes used across handlers: 404 for
-// unknown env, 400 for ambiguous slug, 401 for key/env scope mismatch.
+// ToRequestError maps Resolve/ResolveForKey failures onto handler error shapes.
 // Anything else (e.g. a store failure) passes through untouched.
 func ToRequestError(re *core.RequestEvent, err error) error {
 	if errors.Is(err, ErrNotFound) {

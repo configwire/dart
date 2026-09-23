@@ -36,9 +36,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// Since bounds for the ?since=<N>d parameter.
+// DefaultSinceDays applies when ?since= is absent.
 const (
-	// DefaultSinceDays applies when ?since= is absent.
 	DefaultSinceDays = 7
 	// MaxSinceDays clamps large ?since= values (e.g. 400d -> 90d).
 	MaxSinceDays = 90
@@ -105,7 +104,6 @@ func RatesFor(st Stats) map[string]float64 {
 	return rates
 }
 
-// TotalFor folds fetches + exposures purely (never rounded).
 func TotalFor(st Stats) int {
 	return st.Fetches + st.Exposures
 }
@@ -254,7 +252,6 @@ func Register(se *core.ServeEvent) {
 	se.Router.GET("/api/v1/admin/env/{env}/stats", getStats).Bind(apis.RequireSuperuserAuth())
 }
 
-// getStats handles GET /api/v1/admin/env/:env/stats.
 // Order: 401 (superuser, via middleware) -> 404 (unknown env slug) ->
 // 400 (ambiguous slug without ?project=, or malformed since) -> 200
 // (counts, or zeros for unknown flags).

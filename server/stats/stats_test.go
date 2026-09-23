@@ -84,8 +84,8 @@ func TestAggregateSinceFilter(t *testing.T) {
 	rows := []EventRow{
 		{EnvID: "e", FlagID: "f", Kind: "fetch", Ts: now},
 		{EnvID: "e", FlagID: "f", Kind: "exposure", Variant: "control", Ts: now},
-		{EnvID: "e", FlagID: "f", Kind: "fetch", Ts: now.Add(-100 * 24 * time.Hour)},                          // too old
-		{EnvID: "e", FlagID: "f", Kind: "exposure", Variant: "treatment", Ts: now.Add(-100 * 24 * time.Hour)}, // too old
+		{EnvID: "e", FlagID: "f", Kind: "fetch", Ts: now.Add(-100 * 24 * time.Hour)},
+		{EnvID: "e", FlagID: "f", Kind: "exposure", Variant: "treatment", Ts: now.Add(-100 * 24 * time.Hour)},
 	}
 	st := Aggregate(rows, "e", "f", true, now.Add(-90*24*time.Hour)) // clamped 90d window
 	if st.Fetches != 1 || st.Exposures != 1 {
@@ -132,8 +132,8 @@ func TestAggregateIgnoresUnknownKindsAndZeroTs(t *testing.T) {
 	now := time.Now().UTC()
 	rows := []EventRow{
 		{EnvID: "e", FlagID: "f", Kind: "fetch", Ts: now},
-		{EnvID: "e", FlagID: "f", Kind: "weird", Variant: "control", Ts: now}, // unknown kind
-		{EnvID: "e", FlagID: "f", Kind: "exposure", Variant: "control"},       // zero ts
+		{EnvID: "e", FlagID: "f", Kind: "weird", Variant: "control", Ts: now},
+		{EnvID: "e", FlagID: "f", Kind: "exposure", Variant: "control"},
 	}
 	st := Aggregate(rows, "e", "f", true, now.Add(-7*24*time.Hour))
 	if st.Fetches != 1 || st.Exposures != 0 || len(st.PerVariant) != 0 {

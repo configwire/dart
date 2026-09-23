@@ -85,6 +85,7 @@ func corsOrigin() string {
 	return "*"
 }
 
+// Register mounts the SDK delivery endpoint with gzip encoding.
 func Register(se *core.ServeEvent) {
 	se.Router.GET("/api/v1/env/{env}/config", getConfig).Bind(apis.Gzip())
 	se.Router.OPTIONS("/api/v1/env/{env}/config", optionsConfig)

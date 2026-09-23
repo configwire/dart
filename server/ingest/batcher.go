@@ -19,8 +19,9 @@ type StoredEvent struct {
 	Ts       time.Time
 }
 
-// Batcher tunables: flush every FlushEvery or every FlushSize rows,
-// whichever fires first, so ingest lag stays ≤ ~1s + write time (≤2s bound).
+// BatcherChannelCap bounds queued events before Enqueue returns false (→ 503), so bursts apply backpressure instead of growing memory.
+// FlushEvery bounds ingest lag to ~1s plus write time.
+// FlushSize bounds one flush batch so writes stay small.
 const (
 	BatcherChannelCap = 2048
 	FlushEvery        = time.Second
@@ -57,6 +58,7 @@ func NewBatcher(app core.App) *Batcher {
 	return &Batcher{app: app, ch: make(chan StoredEvent, BatcherChannelCap), done: make(chan struct{})}
 }
 
+// Start launches the background flush goroutine.
 func (b *Batcher) Start() {
 	b.wg.Add(1)
 	go b.run()

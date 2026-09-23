@@ -11,11 +11,11 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// MEMORY-GROWTH RISK (reported per contract): one entry
-// per distinct key-hash ever seen; opportunistic sweeps (≤1/s) delete
-// entries idle for >2 windows, so steady-state size ≈ active keys, but a
-// key-scan attack could still grow the map — acceptable for the SDK-key
-// space (keys are server-issued, not attacker-chosen).
+// Limiter is a per-key fixed-window rate limiter. Memory-growth risk (reported
+// per contract): one entry per distinct key-hash ever seen; opportunistic
+// sweeps (≤1/s) delete entries idle for >2 windows, so steady-state size ≈
+// active keys, but a key-scan attack could still grow the map — acceptable
+// for the SDK-key space (keys are server-issued, not attacker-chosen).
 type Limiter struct {
 	mu        sync.Mutex
 	windows   map[string]*rateWindow
@@ -28,6 +28,7 @@ type rateWindow struct {
 	count int
 }
 
+// NewLimiter builds a Limiter over the default rate window.
 func NewLimiter() *Limiter {
 	return &Limiter{windows: make(map[string]*rateWindow), window: RateWindow}
 }
@@ -37,6 +38,7 @@ func newLimiterWithWindow(d time.Duration) *Limiter {
 	return &Limiter{windows: make(map[string]*rateWindow), window: d}
 }
 
+// Allow consumes one token for id, reporting false when the window is exhausted.
 func (l *Limiter) Allow(id string, limit int) bool {
 	if limit <= 0 {
 		limit = DefaultRateLimit
@@ -61,7 +63,7 @@ func (l *Limiter) Allow(id string, limit int) bool {
 	return w.count <= limit
 }
 
-// Observability for tests/QA only.
+// Size reports tracked key count for tests/QA only.
 func (l *Limiter) Size() int {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -73,6 +75,7 @@ var module struct {
 	limiter *Limiter
 }
 
+// Register mounts the events ingest route and starts the flush pipeline.
 func Register(se *core.ServeEvent) {
 	module.batcher = NewBatcher(se.App)
 	module.limiter = NewLimiter()
@@ -84,7 +87,8 @@ func Register(se *core.ServeEvent) {
 	})
 }
 
-// The store is not yet open during OnBootstrap, so this binds OnServe.
+// EnableWAL switches SQLite to WAL mode on serve. The store is not yet open
+// during OnBootstrap, so this binds OnServe.
 // The mode is persistent in the DB file; verify with `sqlite3 <dir>/data.db "pragma journal_mode;"` → wal.
 func EnableWAL(app core.App) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {

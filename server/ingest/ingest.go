@@ -42,6 +42,7 @@ import (
 )
 
 const (
+	// HeaderKey carries the opaque SDK key; RequireSDKKey reads only this header.
 	HeaderKey = "X-ConfigWire-Key"
 	// MaxBatchEvents bounds a single request body; larger → 400.
 	MaxBatchEvents = 100
@@ -51,9 +52,11 @@ const (
 	MaxEventBytes = 64 << 10
 	// DefaultRateLimit applies when sdk_keys.rateLimit is missing/non-positive.
 	DefaultRateLimit = 60
+	// RateWindow is the fixed per-key rate-limit window.
 	RateWindow       = time.Minute
 )
 
+// EventIn is one validated ingest event with server-normalized timestamp.
 type EventIn struct {
 	Kind     string
 	Flag     string

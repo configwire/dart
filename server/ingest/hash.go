@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 )
 
+// KeyPrefix returns the first 8 chars for prefilter lookup.
 func KeyPrefix(fullKey string) string {
 	if len(fullKey) > 8 {
 		return fullKey[:8]
@@ -16,14 +17,13 @@ func KeyPrefix(fullKey string) string {
 	return fullKey
 }
 
-// The full key itself is never persisted.
+// KeyHash returns hex(sha256(fullKey)) for constant-time comparison. The full key itself is never persisted.
 func KeyHash(fullKey string) string {
 	sum := sha256.Sum256([]byte(fullKey))
 	return hex.EncodeToString(sum[:])
 }
 
-// Raw IDs must be hashed at the edge and
-// dropped — only this digest reaches the events table.
+// HashUser maps a raw ID to its storable digest, dropping the input — only this digest reaches the events table.
 // Empty input -> "" (matches eval.HashUserID's frozen contract exactly;
 // either function satisfies the contract).
 func HashUser(userID string) string {

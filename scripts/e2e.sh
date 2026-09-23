@@ -208,6 +208,125 @@ ok = (d.get('fetches') == exp['fetches']
       and d.get('perVariant') == exp['perVariant'])
 sys.exit(0 if ok else 1)
 EOF
+python3 - <<'EOF' && pass "stats new keys {flagFound,echo,total,rates,sources,approximate:false}" || fail "stats new keys"
+import json, sys
+d = json.load(open('/tmp/cn-t17-stats.json'))
+exp = json.load(open('e2e/fixtures/expected.json'))['stage3_stats']
+echo = d.get('echo', {})
+rates = d.get('rates', {})
+sources = d.get('sources', {})
+expecho = exp['echo']
+exprates = exp['rates']
+expsources = exp['sources']
+ok = (d.get('flagFound') is True
+      and d.get('total') == exp['total'] == d.get('fetches') + d.get('exposures')
+      and echo.get('env') == expecho['env']
+      and echo.get('flag') == expecho['flag']
+      and echo.get('since') == expecho['since']
+      and echo.get('sinceDays') == expecho['sinceDays']
+      and echo.get('horizon') == expecho['since']
+      and isinstance(echo.get('cutoff'), str) and len(echo.get('cutoff')) > 0
+      and isinstance(echo.get('rollupHorizon'), str) and len(echo.get('rollupHorizon')) > 0
+      and d.get('approximate') is False
+      and sources.get('events') == expsources['events']
+      and sources.get('rollups') == expsources['rollups']
+      and abs(rates.get('control', -1) - exprates['control']) < 1e-9
+      and abs(rates.get('treatment', -1) - exprates['treatment']) < 1e-9)
+sys.exit(0 if ok else 1)
+EOF
+
+# ---- STAGE 3F: failure asserts (unknown flag zeros + malformed since 400) ---
+echo "--- STAGE 3F: unknown flag 200-zeros + malformed since 400 ---"
+CODE=$(curl -s -o /tmp/cn-t17-stats-unknown.json -w "%{http_code}" --max-time 10 \
+  "$BASE_URL/api/v1/admin/env/e2e/stats?flag=no-such-flag-xyz&since=7d" \
+  -H "Authorization: $TOKEN" 2>/dev/null || echo "000")
+[ "$CODE" = "200" ] && pass "stats unknown flag 200" || fail "stats unknown flag (code $CODE)"
+python3 - <<'EOF' && pass "stats unknown flag zeros + flagFound:false" || fail "stats unknown flag zeros"
+import json, sys
+d = json.load(open('/tmp/cn-t17-stats-unknown.json'))
+ok = (d.get('fetches') == 0
+      and d.get('exposures') == 0
+      and d.get('perVariant') == {}
+      and d.get('flagFound') is False
+      and d.get('total') == 0
+      and d.get('approximate') is False)
+sys.exit(0 if ok else 1)
+EOF
+CODE=$(curl -s -o /tmp/cn-t17-stats-badsince.json -w "%{http_code}" --max-time 10 \
+  "$BASE_URL/api/v1/admin/env/e2e/stats?flag=exp_bool&since=abc" \
+  -H "Authorization: $TOKEN" 2>/dev/null || echo "000")
+[ "$CODE" = "400" ] && pass "stats malformed since 400" || fail "stats malformed since (code $CODE)"
+
+# ---- STAGE 3B: purge -> stats (backdated seed + dry parity + live purge) -----
+echo "--- STAGE 3B: seed ~35d-old events -> purge -> 90d vs 7d ---"
+OLD_TS="$(python3 -c "from datetime import datetime,timedelta,timezone; print((datetime.now(timezone.utc)-timedelta(days=35)).strftime('%Y-%m-%d %H:%M:%S.000Z'))")"
+mkold() { # kind variant userHash outfile
+  su_post "$C/events/records" "{\"env\":\"$ENVID\",\"flag\":\"$F3\",\"kind\":\"$1\",\"variant\":\"$2\",\"userHash\":\"$3\",\"ts\":\"$OLD_TS\"}" "$4"
+}
+[ "$(mkold fetch "" oldfetch01aaaabbbb /tmp/cn-t17-old1.json)" = "200" ] \
+  && pass "seed old fetch 1/2 (~35d)" || fail "seed old fetch 1/2"
+[ "$(mkold fetch "" oldfetch02aaaabbbb /tmp/cn-t17-old2.json)" = "200" ] \
+  && pass "seed old fetch 2/2 (~35d)" || fail "seed old fetch 2/2"
+[ "$(mkold exposure control oldexp01aaaabbbb /tmp/cn-t17-old3.json)" = "200" ] \
+  && pass "seed old exposure control (~35d)" || fail "seed old exposure"
+CODE="$(su_post "$BASE_URL/api/v1/admin/maintenance/purge?dry=1" '{}' /tmp/cn-t17-purge-dry.json)"
+[ "$CODE" = "200" ] && pass "purge dry 200" || fail "purge dry (code $CODE)"
+python3 - <<'EOF' && pass "purge dry parity {deleted:3, dry:true}" || fail "purge dry parity"
+import json, sys
+d = json.load(open('/tmp/cn-t17-purge-dry.json'))
+exp = json.load(open('e2e/fixtures/expected.json'))['stage3b_purge']
+ok = (d.get('deleted') == exp['dryDeleted'] and d.get('dry') is True)
+sys.exit(0 if ok else 1)
+EOF
+CODE="$(su_post "$BASE_URL/api/v1/admin/maintenance/purge" '{}' /tmp/cn-t17-purge-live.json)"
+[ "$CODE" = "200" ] && pass "purge live 200" || fail "purge live (code $CODE)"
+python3 - <<'EOF' && pass "purge live {deleted:3, dry:false}" || fail "purge live counts"
+import json, sys
+d = json.load(open('/tmp/cn-t17-purge-live.json'))
+exp = json.load(open('e2e/fixtures/expected.json'))['stage3b_purge']
+ok = (d.get('deleted') == exp['liveDeleted'] and d.get('dry') is False)
+sys.exit(0 if ok else 1)
+EOF
+CODE=$(curl -s -o /tmp/cn-t17-stats-90d.json -w "%{http_code}" --max-time 10 \
+  "$BASE_URL/api/v1/admin/env/e2e/stats?flag=exp_bool&since=90d" \
+  -H "Authorization: $TOKEN" 2>/dev/null || echo "000")
+[ "$CODE" = "200" ] && pass "stats 90d 200" || fail "stats 90d (code $CODE)"
+python3 - <<'EOF' && pass "stats 90d rolled-up {fetches:3, exposures:4, approximate:true}" || fail "stats 90d rolled-up"
+import json, sys
+d = json.load(open('/tmp/cn-t17-stats-90d.json'))
+exp = json.load(open('e2e/fixtures/expected.json'))['stage3b_purge']['stats90d']
+echo = d.get('echo', {})
+sources = d.get('sources', {})
+ok = (d.get('fetches') == exp['fetches']
+      and d.get('exposures') == exp['exposures']
+      and d.get('perVariant') == exp['perVariant']
+      and d.get('total') == exp['total']
+      and d.get('flagFound') is True
+      and d.get('approximate') is True
+      and sources.get('events') == exp['sources']['events']
+      and sources.get('rollups') == exp['sources']['rollups'] > 0
+      and echo.get('sinceDays') == exp['echo']['sinceDays']
+      and echo.get('since') == exp['echo']['since'])
+sys.exit(0 if ok else 1)
+EOF
+CODE=$(curl -s -o /tmp/cn-t17-stats-7d.json -w "%{http_code}" --max-time 10 \
+  "$BASE_URL/api/v1/admin/env/e2e/stats?flag=exp_bool&since=7d" \
+  -H "Authorization: $TOKEN" 2>/dev/null || echo "000")
+[ "$CODE" = "200" ] && pass "stats 7d 200 (post-purge)" || fail "stats 7d post-purge (code $CODE)"
+python3 - <<'EOF' && pass "stats 7d excludes history {approximate:false, rollups:0}" || fail "stats 7d excludes history"
+import json, sys
+d = json.load(open('/tmp/cn-t17-stats-7d.json'))
+exp = json.load(open('e2e/fixtures/expected.json'))['stage3b_purge']['stats7d']
+sources = d.get('sources', {})
+ok = (d.get('fetches') == exp['fetches']
+      and d.get('exposures') == exp['exposures']
+      and d.get('perVariant') == exp['perVariant']
+      and d.get('total') == exp['total']
+      and d.get('approximate') is False
+      and sources.get('events') == exp['sources']['events']
+      and sources.get('rollups') == exp['sources']['rollups'])
+sys.exit(0 if ok else 1)
+EOF
 
 # ---- STAGE 4: publish v2 breaking change ------------------------------------
 echo "--- STAGE 4: flip home_config default -> publish v2 ---"

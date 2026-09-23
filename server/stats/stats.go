@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"confignest/envresolve"
+	"confignest/purge"
 	"confignest/releases"
 	"confignest/security"
 
@@ -90,6 +91,135 @@ type Stats struct {
 	PerVariant map[string]int // over exposures only, verbatim variant names
 }
 
+// RatesFor derives per-variant exposure shares purely (display-math
+// only; counts are never rounded). exposures == 0 yields an empty
+// non-nil map so the wire shape is rates:{} (never NaN/null).
+func RatesFor(st Stats) map[string]float64 {
+	rates := map[string]float64{}
+	if st.Exposures <= 0 {
+		return rates
+	}
+	for v, n := range st.PerVariant {
+		rates[v] = float64(n) / float64(st.Exposures)
+	}
+	return rates
+}
+
+// TotalFor folds fetches + exposures purely (never rounded).
+func TotalFor(st Stats) int {
+	return st.Fetches + st.Exposures
+}
+
+// EffectiveSince renders the effective window label after ParseSince
+// clamping (e.g. 400d -> "90d", absent -> "7d").
+func EffectiveSince(days int) string {
+	return strconv.Itoa(days) + "d"
+}
+
+// FlagFound reports whether the ?flag= filter resolved: true when the
+// param is absent (unfiltered) or the key resolves via MatchFlag;
+// false on unknown keys (zeros with 200, never 404).
+func FlagFound(flagKey string, matched bool) bool {
+	if flagKey == "" {
+		return true
+	}
+	return matched
+}
+
+// EchoFor builds the echo block purely (unit-testable): env/flag are
+// verbatim request values, since/sinceDays/horizon carry the EFFECTIVE
+// window after the 90d clamp, cutoff is the UTC RFC3339 window start,
+// and rollupHorizon is the UTC RFC3339 midnight that splits raw events
+// from pre-purge daily rollups (see HorizonFor). horizon keeps its Todo 1
+// label meaning ("7d"); rollupHorizon is the additive machine-readable
+// split point, so old clients keep parsing horizon untouched.
+func EchoFor(envSlug, flagKey string, days int, cutoff, horizon time.Time) map[string]any {
+	since := EffectiveSince(days)
+	return map[string]any{
+		"env":           envSlug,
+		"flag":          flagKey,
+		"since":         since,
+		"sinceDays":     days,
+		"cutoff":        cutoff.UTC().Format(time.RFC3339),
+		"horizon":       since,
+		"rollupHorizon": horizon.UTC().Format(time.RFC3339),
+	}
+}
+
+// HorizonFor returns the UTC-midnight split between raw events and
+// pre-purge daily rollups: DayBucket(now - RawRetentionDays), the same
+// day grain the purge rolls up into. Raw events at/after the horizon
+// are live; rollup buckets strictly before it are history. Disjoint by
+// construction, so a crash-window row present in BOTH sources is still
+// counted once (plus approximate:true marks the taint).
+func HorizonFor(now time.Time) time.Time {
+	return purge.DayBucket(now.AddDate(0, 0, -purge.RawRetentionDays))
+}
+
+// EventCutoffFor clamps the raw-events window to the live side of the
+// horizon: the later of the ?since= cutoff and the horizon. Short
+// windows (<=30d) are untouched; long windows stop at the horizon so
+// purged history comes from rollups exactly once.
+func EventCutoffFor(cutoff, horizon time.Time) time.Time {
+	if cutoff.After(horizon) {
+		return cutoff
+	}
+	return horizon
+}
+
+// AggregateRollups folds event_daily buckets into Stats purely (no I/O).
+// Filter order mirrors Aggregate: env -> flag (stored FlagID resolved
+// once per request, never re-resolved per bucket, so renamed/orphaned
+// flags keep their history) -> day-grain cutoff (day >= cutoffDay kept,
+// exactly-at-cutoff kept, zero-day skipped) -> horizon (day < horizon;
+// the boundary day stays raw-side) -> counts (fetches+exposures added,
+// perVariant over exposures only, verbatim variant incl "").
+func AggregateRollups(buckets []purge.Rollup, envID, flagID string, filterByFlag bool, cutoffDay, horizon time.Time) Stats {
+	out := Stats{PerVariant: map[string]int{}}
+	for _, b := range buckets {
+		if b.EnvID != envID {
+			continue
+		}
+		if filterByFlag && b.FlagID != flagID {
+			continue
+		}
+		if b.Day.IsZero() || b.Day.Before(cutoffDay) {
+			continue
+		}
+		if !b.Day.Before(horizon) {
+			continue
+		}
+		out.Fetches += b.Fetches
+		out.Exposures += b.Exposures
+		if b.Exposures > 0 {
+			out.PerVariant[b.Variant] += b.Exposures
+		}
+	}
+	return out
+}
+
+// ApproximateFor reports whether the merged window is approximate:
+// true as soon as any rollup day contributes (rollup counters can carry
+// a crash-window overshoot per the purge CRASH SEMANTIC, so merged
+// windows must never claim exactness). Events-only windows stay exact.
+func ApproximateFor(rollupsTotal int) bool {
+	return rollupsTotal > 0
+}
+
+// MergeStats folds the rollup aggregate into the events aggregate. Both
+// inputs are already windowed to disjoint sides of the horizon, so this
+// is a plain sum; perVariant keys merge verbatim ("" included).
+func MergeStats(events, rollups Stats) Stats {
+	out := Stats{Fetches: events.Fetches + rollups.Fetches, Exposures: events.Exposures + rollups.Exposures, PerVariant: map[string]int{}}
+	for v, n := range events.PerVariant {
+		out.PerVariant[v] += n
+	}
+	for v, n := range rollups.PerVariant {
+		out.PerVariant[v] += n
+	}
+	return out
+}
+
 // Aggregate folds rows into Stats purely (no I/O). Filters: envID must
 // match; when filterByFlag is true only rows whose flag relation equals
 // flagID match (rows with an unset flag relation are excludable and drop
@@ -143,7 +273,10 @@ func getStats(re *core.RequestEvent) error {
 	if perr != nil {
 		return re.BadRequestError(perr.Error(), nil)
 	}
-	cutoff := time.Now().UTC().Add(-time.Duration(days) * 24 * time.Hour)
+	now := time.Now().UTC()
+	cutoff := now.Add(-time.Duration(days) * 24 * time.Hour)
+	horizon := HorizonFor(now)
+	cutoffDay := purge.DayBucket(cutoff)
 
 	// Flag filter by relation -> key resolution SCOPED to the env's
 	// project (key + project, never global key). Unknown flag keys yield
@@ -152,30 +285,78 @@ func getStats(re *core.RequestEvent) error {
 	flagKey := re.Request.URL.Query().Get("flag")
 	flagID := ""
 	filterByFlag := false
+	matched := false
 	if flagKey != "" {
 		filterByFlag = true
 		if rows, rerr := envresolve.FlagRows(re.App); rerr == nil {
-			flagID, _ = envresolve.MatchFlag(rows, flagKey, env.GetString("project"))
+			flagID, matched = envresolve.MatchFlag(rows, flagKey, env.GetString("project"))
 		}
 	}
+	flagFound := FlagFound(flagKey, matched)
 
 	rows, err := loadRows(re.App)
 	if err != nil {
 		return err
 	}
-	st := Aggregate(rows, env.Id, flagID, filterByFlag, cutoff)
+	eventCutoff := EventCutoffFor(cutoff, horizon)
+	stEvents := Aggregate(rows, env.Id, flagID, filterByFlag, eventCutoff)
+
+	buckets, err := loadRollups(re.App)
+	if err != nil {
+		return err
+	}
+	stRollups := AggregateRollups(buckets, env.Id, flagID, filterByFlag, cutoffDay, horizon)
+	st := MergeStats(stEvents, stRollups)
+
+	eventsTotal := TotalFor(stEvents)
+	rollupsTotal := TotalFor(stRollups)
+	approximate := ApproximateFor(rollupsTotal)
 
 	version, err := releases.MaxVersionForEnv(re.App, env.Id)
 	if err != nil {
 		return err
 	}
 
+	rates := RatesFor(st)
+	total := TotalFor(st)
+	echo := EchoFor(slug, flagKey, days, cutoff, horizon)
+
 	return re.JSON(http.StatusOK, map[string]any{
-		"fetches":    st.Fetches,
-		"exposures":  st.Exposures,
-		"perVariant": st.PerVariant,
-		"version":    version,
+		"fetches":     st.Fetches,
+		"exposures":   st.Exposures,
+		"perVariant":  st.PerVariant,
+		"version":     version,
+		"echo":        echo,
+		"flagFound":   flagFound,
+		"total":       total,
+		"rates":       rates,
+		"sources":     map[string]any{"events": eventsTotal, "rollups": rollupsTotal},
+		"approximate": approximate,
 	})
+}
+
+// loadRollups projects the event_daily collection into purge.Rollup
+// buckets in one O(n) scan. Flag joins use the stored FlagID verbatim
+// (relation unset -> ""), resolved once per request in getStats —
+// historic rows are never re-resolved against the current key set.
+// userHash never exists on this collection (counts only).
+func loadRollups(app core.App) ([]purge.Rollup, error) {
+	recs, err := app.FindAllRecords("event_daily")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]purge.Rollup, 0, len(recs))
+	for _, r := range recs {
+		out = append(out, purge.Rollup{
+			Day:       r.GetDateTime("day").Time(),
+			EnvID:     r.GetString("env"),
+			FlagID:    r.GetString("flag"),
+			Variant:   r.GetString("variant"),
+			Fetches:   r.GetInt("fetches"),
+			Exposures: r.GetInt("exposures"),
+		})
+	}
+	return out, nil
 }
 
 // loadRows projects the events collection into EventRows in one O(n)

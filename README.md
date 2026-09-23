@@ -57,7 +57,7 @@ kill $(lsof -ti:8109)
 
 Replace `<sha256-of-key>` with the hash printed two steps earlier.
 Expected tail: publish `{"version":1,...}`, fetch `{"version":1,...}`,
-events `{"accepted":2,...}`, stats `{"fetches":1,"exposures":1,...}`.
+events `{"accepted":2,...}`, stats `{"fetches":1,"exposures":1,...,"flagFound":true,"total":2,"rates":{"control":1},"sources":{"events":2,"rollups":0},"approximate":false,...}` (full shape in `docs/CONTRACT.md` section 5).
 
 Cleanup: `kill $(lsof -ti:8109)` (receipt: `curl` refuses + `lsof`
 empty), then `rm -rf /tmp/cn-qs`.
@@ -109,6 +109,10 @@ See `client/dart/example/main.dart` for a runnable demo.
 
 - Raw `events`: 30 days, then rolled into `event_daily` and deleted.
 - `event_daily` rollups `(day, env, flag, variant)`: 90 days.
+- Stats stays rollup-backed to 90d: windows past the 30d horizon merge
+  `event_daily` buckets and answer `approximate:true` (with
+  `sources:{events,rollups}` splitting the merge); events-only windows
+  stay exact (`approximate:false`). See `docs/CONTRACT.md` section 5.
 - Manual/dry-run: `POST /api/v1/admin/maintenance/purge?dry=1`.
 - Ingest rate: 60 req/min per key default (`sdk_keys.rateLimit`).
 - Ingest lag bound: about 1s plus write (bounded 2s); buffer cap 2048

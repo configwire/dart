@@ -219,36 +219,71 @@ Ref: `server/ingest/ingest.go:25-28`.
 
 ## 5. Stats — `GET /api/v1/admin/env/{env}/stats?flag=X&since=7d`
 
-Ref: `server/stats/stats.go:130-174` (handler). Superuser-only;
+Ref: `server/stats/stats.go:262-335` (handler), `:253-255` (route + superuser-only). Superuser-only;
 SDK-key-only or unauth then `401`.
 
 Success `200`:
 
 ```json
-{"fetches": 100, "exposures": 100, "perVariant": {"control": 60, "treatment": 40}, "version": 1}
+{"fetches": 3, "exposures": 2, "perVariant": {"control": 1, "treatment": 1}, "version": 1, "echo": {"env": "dev", "flag": "launch_flag", "since": "90d", "sinceDays": 90, "cutoff": "2026-06-25T04:08:22Z", "horizon": "90d", "rollupHorizon": "2026-08-24T00:00:00Z"}, "flagFound": true, "total": 5, "rates": {"control": 0.5, "treatment": 0.5}, "sources": {"events": 2, "rollups": 3}, "approximate": true}
 ```
 
+- Additive-compat: the old keys (`fetches`, `exposures`,
+  `perVariant`, `version`) are byte-identical to the frozen shape;
+  every other key is additive only. Old clients ignore unknown JSON
+  fields; nothing is renamed or removed.
 - Exact integer counts, no rounding. `perVariant` covers exposures
-  only, verbatim variant names (including `""` if stored).
+  only, verbatim variant names (including `""` if stored); both
+  sources merge perVariant keys verbatim.
 - `version` is the env's max release version.
-- `userHash` is never read (aggregate counts only).
+- `userHash` is never read (aggregate counts only, no PII in the
+  response). Ref: `:362-381`.
+- `echo`: `env`/`flag` are the verbatim request values (`flag` is
+  `""` when absent); `since`/`sinceDays` carry the EFFECTIVE window
+  after the 90d clamp; `cutoff` is the UTC RFC3339 window start
+  (now-UTC minus days); `horizon` keeps the human-readable window
+  label (same string as `since`, for example `"7d"`); `rollupHorizon`
+  is the UTC-midnight RFC3339 split between raw events and pre-purge
+  daily rollups. Ref: `:113-147`.
+- `flagFound`: true when `?flag=` is absent (unfiltered) or the key
+  resolves; false on unknown keys (including path-ish `../x`), which
+  then return zeros with `200` and version populated, never `404`.
+  `?flag=` resolves scoped to the stats env's project (key +
+  project, never global key), so the same key under another project
+  never pollutes counts. Events with unset flag relation drop out
+  under any `?flag=` filter, count when absent. Ref: `:119-127,285-295`.
+- `total` is fetches + exposures, never rounded. Ref: `:108-111`.
+- `rates` is per-variant exposure shares (`perVariant[v] /
+  exposures`, display-math only, counts never rounded);
+  `exposures == 0` yields `{}` (never NaN/null). Ref: `:94-106`.
+- `sources`: `events` is the events-side total, `rollups` the
+  rollups-side total. `approximate` is `rollupsTotal > 0`: merged
+  windows are summed-but-flagged-approximate (rollup counters can
+  carry a crash-window overshoot, so merged windows never claim
+  exactness); events-only windows are exact (`approximate: false`).
+  Ref: `:201-221,311-313`.
+- Disjoint-merge rule: `horizon = DayBucket(now - 30d)` (UTC midnight,
+  the same day grain purge rolls up into). Raw events count when
+  `ts >= max(cutoff, horizon)`; rollup buckets count when
+  `cutoffDay <= day < horizon` (exactly-at-cutoff kept, boundary day
+  stays raw-side). Disjoint by construction, so a crash-window row
+  present in BOTH sources still counts once (plus `approximate: true`
+  marks the taint). Ref: `:149-168,177-199,209-221`.
+- Flag join: both sources join on the once-per-request stored FlagID
+  (resolved once, never re-resolved per row/bucket), so
+  renamed/orphaned flags keep their history. Ref: `:285-294,338-360`.
 - `since` grammar: `?since=<N>d`, absent/blank means 7d default,
   `N > 90` clamped to 90d (never an error), `N < 1` or wrong shape
   (`abc`, `-5d`, `0d`, `7h`, bare `7`) then `400`. Cutoff is
-  now-UTC minus days; rows with ts before cutoff or zero ts excluded.
-  Ref: `:49-65,98-119`.
-- Unknown flag keys (including path-ish `../x`) then zeros `200`
-  with version populated, never `404`. `?flag=` resolves scoped to
-  the stats env's project (key + project, never global key), so the
-  same key under another project never pollutes counts. Events with
-  unset flag relation drop out under any `?flag=` filter, count when
-  absent.
+  now-UTC minus days; raw rows with ts before the event cutoff or
+  zero ts excluded. Ref: `:51-67`.
 - Unknown env slug then `404`. Optional `?project=<projectId>`
   disambiguates a slug shared by several projects (`400` ambiguous
-  without it). Ref: `:144-155`.
-- Aggregation is an in-Go O(n) scan over `events` (v1-appropriate;
-  indexed replacement is the documented follow-up past ~100k rows).
-  Ref: `:16-21,176-194`.
+  without it). Ref: `:267-270`.
+- Aggregation is an in-Go O(n) scan over `events` plus one O(n) scan
+  over `event_daily` (v1-appropriate; indexed replacement is the
+  documented follow-up past ~100k rows).
+  Ref: `:16-21,223-250,338-381`.
 
 ## 6. Stream — `GET /api/v1/env/{env}/stream`
 

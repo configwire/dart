@@ -203,7 +203,7 @@ func TestAllowHeadersIsConfigWire(t *testing.T) {
 
 // TestCorsOriginSingleRead covers the zero-residue CORS behavior:
 // only CONFIGWIRE_CORS_ORIGIN is read, else "*". The legacy
-// CONFIGNEST_CORS_ORIGIN is ignored entirely (breaking rebrand).
+// The pre-rebrand CORS env var is ignored entirely (breaking rebrand).
 func TestCorsOriginDualRead(t *testing.T) {
 	t.Setenv("CONFIGWIRE_CORS_ORIGIN", "https://app.example.com")
 	t.Setenv("CONFIGNEST_CORS_ORIGIN", "https://legacy.example.com")

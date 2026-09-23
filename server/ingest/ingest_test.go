@@ -276,7 +276,7 @@ func TestValidateBodyExactly100(t *testing.T) {
 
 // TestHeaderKeyIsConfigWire guards the todo-5 breaking rename: the SDK key
 // header is X-ConfigWire-Key, and RequireSDKKey reads ONLY this constant
-// (single Header.Get site), so the old X-ConfigNest-Key header 401s by
+// (single Header.Get site), so the pre-rebrand header 401s by
 // design with "Missing or invalid SDK key." — no shim. Live 200/401 proof
 // is in .omo/evidence/configwire-t5-wire.log.
 func TestHeaderKeyIsConfigWire(t *testing.T) {

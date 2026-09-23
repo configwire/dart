@@ -5,49 +5,23 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:configwire/configwire.dart';
-import 'package:hive_ce/hive_ce.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
 
 /// Deterministic MockClient suite for the offline-first client.
 ///
-/// Each test gets a FRESH temp Hive box (setUpAll/tearDownAll) so no test
+/// Each test gets a FRESH in-memory store (MemoryCacheStore) so no test
 /// observes another's persisted state (stale-cache discipline).
 void main() {
-  late Directory tmp;
-  var boxCounter = 0;
-  final openBoxes = <String>[];
-
-  setUpAll(() async {
-    tmp = await Directory.systemTemp.createTemp('cw-t12-test-');
-    Hive.init(tmp.path);
-  });
-
-  tearDownAll(() async {
-    for (final name in openBoxes) {
-      try {
-        if (Hive.isBoxOpen(name)) await Hive.box(name).close();
-        await Hive.deleteBoxFromDisk(name);
-      } catch (_) {
-        // Best-effort cleanup; never throws the suite.
-      }
-    }
-    openBoxes.clear();
-    if (await tmp.exists()) await tmp.delete(recursive: true);
-  });
-
   Future<ConfigWire> clientWith(MockClient mock, {Map<String, Object?> defaults = const {}}) async {
-    final boxName = 'cw-t12-${boxCounter++}';
-    openBoxes.add(boxName);
-    final box = await Hive.openBox(boxName);
     return ConfigWire(
       apiKey: 'test-key',
       env: 'dev',
       baseUrl: 'http://localhost:8090',
       defaults: defaults,
       client: mock,
-      store: HiveCacheStore(env: 'dev', box: box),
+      store: MemoryCacheStore(),
       // No throttle in tests unless the test says so.
       minimumFetchInterval: Duration.zero,
     );
@@ -87,7 +61,7 @@ void main() {
   });
 
   group('fetch contract', () {
-    test('200-update: values replaced, etag stored, Hive doc has all five keys', () async {
+    test('200-update: values replaced, etag stored, store doc has all five keys', () async {
       String? postedBody;
       final mock = MockClient((req) async {
         if (req.method == 'POST') {
@@ -101,16 +75,14 @@ void main() {
           headers: {'ETag': 'abc123'},
         );
       });
-      const boxName = 'cw-t12-200';
-      openBoxes.add(boxName);
-      final box = await Hive.openBox(boxName);
+      final store = MemoryCacheStore();
       final client = ConfigWire(
         apiKey: 'test-key',
         env: 'dev',
         baseUrl: 'http://localhost:8090',
         defaults: {'flag_bool': true},
         client: mock,
-        store: HiveCacheStore(env: 'dev', box: box),
+        store: store,
         minimumFetchInterval: Duration.zero,
       );
       addTearDown(client.dispose);
@@ -123,8 +95,10 @@ void main() {
       expect(client.etag, equals('abc123'));
       expect(client.version, equals(1));
 
-      // Hive doc holds all five keys (incl. variants).
-      final onDisk = jsonDecode(box.get('cache_dev') as String) as Map;
+      // Store doc holds all five keys (incl. variants).
+      final saved = await store.load();
+      expect(saved, isNotNull);
+      final onDisk = saved!.toJson();
       expect(onDisk.keys.toSet(), equals({'etag', 'version', 'fetchedAt', 'values', 'variants'}));
       expect(onDisk['etag'], equals('abc123'));
       expect(onDisk['version'], equals(1));
@@ -162,23 +136,21 @@ void main() {
 
     test('offline-cache: network failure keeps stale cache, no throw', () async {
       // Seed the cache with one good fetch, then go offline. Both
-      // clients share one Hive box (the seeder persists, the offline
-      // client re-reads).
+      // clients share one in-memory store (the seeder persists, the
+      // offline client re-reads).
       final seed = MockClient((req) async {
         if (req.method == 'POST') {
           return http.Response('{"accepted":1,"status":202}', 202);
         }
         return http.Response(fetch200(values: {'flag_str': 'cached-live'}), 200);
       });
-      const boxName = 'cw-t12-offline';
-      openBoxes.add(boxName);
-      final box = await Hive.openBox(boxName);
+      final store = MemoryCacheStore();
       final seeder = ConfigWire(
         apiKey: 'test-key',
         env: 'dev',
         baseUrl: 'http://localhost:8090',
         client: seed,
-        store: HiveCacheStore(env: 'dev', box: box),
+        store: store,
         minimumFetchInterval: Duration.zero,
       );
       addTearDown(seeder.dispose);
@@ -190,7 +162,7 @@ void main() {
         env: 'dev',
         baseUrl: 'http://localhost:8090',
         client: offline,
-        store: HiveCacheStore(env: 'dev', box: box),
+        store: store,
         minimumFetchInterval: Duration.zero,
       );
       addTearDown(client.dispose);
@@ -239,14 +211,12 @@ void main() {
         gets++;
         return http.Response(fetch200(), 200);
       });
-      const throttleBox = 'cw-t12-throttle';
-      openBoxes.add(throttleBox);
       final client = ConfigWire(
         apiKey: 'test-key',
         env: 'dev',
         baseUrl: 'http://localhost:8090',
         client: mock,
-        store: HiveCacheStore(env: 'dev', box: await Hive.openBox(throttleBox)),
+        store: MemoryCacheStore(),
         minimumFetchInterval: const Duration(hours: 12),
       );
       addTearDown(client.dispose);
@@ -315,15 +285,13 @@ void main() {
         await Future<void>.delayed(const Duration(seconds: 30));
         return http.Response(fetch200(), 200);
       });
-      const timeoutBox = 'cw-t12-timeout';
-      openBoxes.add(timeoutBox);
       final client = ConfigWire(
         apiKey: 'test-key',
         env: 'dev',
         baseUrl: 'http://localhost:8090',
         defaults: {'d': 'default'},
         client: hanging,
-        store: HiveCacheStore(env: 'dev', box: await Hive.openBox(timeoutBox)),
+        store: MemoryCacheStore(),
         minimumFetchInterval: Duration.zero,
         fetchTimeout: const Duration(milliseconds: 200),
       );

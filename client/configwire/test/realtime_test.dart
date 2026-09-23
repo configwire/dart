@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:configwire/configwire.dart';
-import 'package:hive_ce/hive_ce.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
@@ -15,33 +14,11 @@ import 'package:test/test.dart';
 /// The stream side is a LOCAL `dart:io` HttpServer test double (no
 /// dependency on the Go server); the fetch side is a MockClient-backed
 /// ConfigWire (the updater's stream client is always real, so the two
-/// sides never interfere). Every test uses a FRESH temp cache dir and
+/// sides never interfere). Every test uses a FRESH in-memory store and
 /// disposes its client (no dangling Timers — a leak would hang the
 /// suite). All live waits are bounded (`.timeout`), so the suite
 /// finishes in seconds, never near the 120s budget.
 void main() {
-  late Directory tmp;
-  var boxCounter = 0;
-  final openBoxes = <String>[];
-
-  setUpAll(() async {
-    tmp = await Directory.systemTemp.createTemp('cw-t14-test-');
-    Hive.init(tmp.path);
-  });
-
-  tearDownAll(() async {
-    for (final name in openBoxes) {
-      try {
-        if (Hive.isBoxOpen(name)) await Hive.box(name).close();
-        await Hive.deleteBoxFromDisk(name);
-      } catch (_) {
-        // Best-effort cleanup; never throws the suite.
-      }
-    }
-    openBoxes.clear();
-    if (await tmp.exists()) await tmp.delete(recursive: true);
-  });
-
   String fetch200({
     String etag = 'e2',
     int version = 2,
@@ -69,15 +46,13 @@ void main() {
   }
 
   Future<ConfigWire> makeClient(MockClient mock, String baseUrl) async {
-    final boxName = 'cw-t14-${boxCounter++}';
-    openBoxes.add(boxName);
     final client = ConfigWire(
       apiKey: 'test-key',
       env: 'dev',
       baseUrl: baseUrl,
       defaults: {'live_flag': false},
       client: mock,
-      store: HiveCacheStore(env: 'dev', box: await Hive.openBox(boxName)),
+      store: MemoryCacheStore(),
       minimumFetchInterval: Duration.zero,
     );
     addTearDown(client.dispose);

@@ -138,7 +138,10 @@ Receipt: `curl $BASE/hello` refuses and `lsof -ti:8120` is empty.
   to `package:config_wire/config_wire.dart`; the client already sends
   `X-ConfigWire-Key`. Delete stale `.config_nest_*-cache.json` files or
   leave them; they are never read again.
-- Admin UI: first load after the rebrand migrates the stored session
-  automatically; a tampered token lands back on the login form.
+- Admin UI: first load migrates the stored session automatically
+  (at most one silent re-login). An empty or missing token lands on the
+  login form; a garbage token shows an error toast and stays in the
+  shell (pre-existing PocketBase 403 behavior, unchanged by the
+  rebrand).
 - k6 gate: pass the new key as `GATE_KEY=<cw-key> k6 run
   --summary-export=/tmp/cw-gate-summary.json scripts/k6-fetch.js`.

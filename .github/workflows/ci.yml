@@ -21,9 +21,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
+      - uses: browser-actions/setup-chrome@v1
       - run: cd client/configwire && dart pub get
       - run: cd client/configwire && dart analyze
       - run: cd client/configwire && dart test
+      - run: cd client/configwire && dart test -p chrome test/chrome_smoke_test.dart
 
   checks:
     runs-on: ubuntu-latest
@@ -33,5 +35,6 @@ jobs:
         with:
           go-version-file: server/go.mod
       - uses: dart-lang/setup-dart@v1
+      - run: cd client/configwire && dart pub get
       - run: make lint
       - run: make test

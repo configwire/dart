@@ -5,7 +5,8 @@
 Single-binary remote config: publish immutable releases, evaluate flags
 per SDK fetch, ingest fetch/exposure events, query stats, stream updates
 over SSE, purge old events on a retention schedule. Admin UI ships as
-static files; Dart client is pure-Dart (no Flutter).
+static files; Dart client is pure-Dart (no Flutter) and works on Flutter
+via bring-your-own-box Hive.
 
 Wire details live in `docs/CONTRACT.md`. Operator security notes live in
 `docs/SECURITY.md`.
@@ -13,7 +14,8 @@ Wire details live in `docs/CONTRACT.md`. Operator security notes live in
 ## Prereqs
 
 - Go (version floor per `server/go.mod`)
-- Dart SDK `>=3.12.0` (pure-Dart client in `client/configwire`)
+- Dart SDK `>=3.12.0` (pure-Dart client in `client/configwire`,
+  Flutter-compatible via bring-your-own-box Hive)
 - `make`, `bash`, `curl`, `python3`
 
 ## Serving (cwd rule)
@@ -81,18 +83,24 @@ answers `304` empty.
 
 ```dart
 import 'package:configwire/configwire.dart';
+import 'package:hive_ce/hive_ce.dart';
+
+// Host-owned Hive: Dart VM `Hive.init(path)`; Flutter
+// `await Hive.initFlutter()`; Web: no init (IndexedDB).
+final box = await Hive.openBox('configwire_cache');
 
 final cw = ConfigWire(
   apiKey: 'YOUR_SDK_KEY', // sent as X-ConfigWire-Key, never printed
   env: 'dev',
   baseUrl: 'http://127.0.0.1:8090',
   defaults: {'launch_flag': false},
-  cacheFile: '/tmp/cw-cache.json', // default is cwd-relative
+  // Omit `store:` for a session-only in-memory cache.
+  store: HiveCacheStore(box: box, env: 'dev'),
 );
 await cw.ensureInitialized();
 await cw.fetchAndActivate();
 final on = cw.getBool('launch_flag');
-await cw.dispose();
+await cw.dispose(); // never closes the box; host owns Hive.close()
 ```
 
 Realtime: `cw.connectRealtime()` opens SSE plus a 15min poll fallback,
@@ -129,7 +137,8 @@ See `client/configwire/example/main.dart` for a runnable demo.
 | ------ | ---- |
 | `make serve` | `cd server && go run . serve` |
 | `make migrate ARGS="up"` | `cd server && go run . migrate <args>` |
-| `make test` | Go build+vet+test plus `dart analyze`+`dart test` (both suites, exit 0) |
+| `make test` | Go build+vet+test plus `dart analyze`+`dart test` (exit 0) |
+| `make test-chrome` | `dart test -p chrome` core smoke (needs Chrome; VM suites stay hermetic) |
 | `make lint` | `gofmt` check + `go vet` + `dart analyze` |
 | `make e2e` | `bash scripts/e2e.sh` (T17 owns that script; reference only) |
 

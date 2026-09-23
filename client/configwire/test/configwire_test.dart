@@ -1,37 +1,53 @@
+@TestOn('vm')
+library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:configwire/configwire.dart';
+import 'package:hive_ce/hive_ce.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
 
-/// Deterministic MockClient suite for the todo-12 offline-first client.
+/// Deterministic MockClient suite for the offline-first client.
 ///
-/// Each test gets a FRESH temp cache file (setUp/tearDown) so no test
+/// Each test gets a FRESH temp Hive box (setUpAll/tearDownAll) so no test
 /// observes another's persisted state (stale-cache discipline).
 void main() {
   late Directory tmp;
-  late String cachePath;
+  var boxCounter = 0;
+  final openBoxes = <String>[];
 
-  setUp(() async {
+  setUpAll(() async {
     tmp = await Directory.systemTemp.createTemp('cw-t12-test-');
-    cachePath = '${tmp.path}/cache.json';
+    Hive.init(tmp.path);
   });
 
-  tearDown(() async {
+  tearDownAll(() async {
+    for (final name in openBoxes) {
+      try {
+        if (Hive.isBoxOpen(name)) await Hive.box(name).close();
+        await Hive.deleteBoxFromDisk(name);
+      } catch (_) {
+        // Best-effort cleanup; never throws the suite.
+      }
+    }
+    openBoxes.clear();
     if (await tmp.exists()) await tmp.delete(recursive: true);
   });
 
-  ConfigWire clientWith(MockClient mock, {Map<String, Object?> defaults = const {}}) {
+  Future<ConfigWire> clientWith(MockClient mock, {Map<String, Object?> defaults = const {}}) async {
+    final boxName = 'cw-t12-${boxCounter++}';
+    openBoxes.add(boxName);
+    final box = await Hive.openBox(boxName);
     return ConfigWire(
       apiKey: 'test-key',
       env: 'dev',
       baseUrl: 'http://localhost:8090',
       defaults: defaults,
       client: mock,
-      cacheFile: cachePath,
+      store: HiveCacheStore(env: 'dev', box: box),
       // No throttle in tests unless the test says so.
       minimumFetchInterval: Duration.zero,
     );
@@ -49,7 +65,7 @@ void main() {
 
   group('defaults getters (pre-existing behavior)', () {
     test('seeded defaults read back with correct types', () async {
-      final client = clientWith(
+      final client = await clientWith(
         MockClient((_) async => http.Response('{}', 500)),
         defaults: {
           'flag_bool': true,
@@ -71,7 +87,7 @@ void main() {
   });
 
   group('fetch contract', () {
-    test('200-update: values replaced, etag stored, cache file has all four keys', () async {
+    test('200-update: values replaced, etag stored, Hive doc has all five keys', () async {
       String? postedBody;
       final mock = MockClient((req) async {
         if (req.method == 'POST') {
@@ -85,7 +101,18 @@ void main() {
           headers: {'ETag': 'abc123'},
         );
       });
-      final client = clientWith(mock, defaults: {'flag_bool': true});
+      const boxName = 'cw-t12-200';
+      openBoxes.add(boxName);
+      final box = await Hive.openBox(boxName);
+      final client = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        defaults: {'flag_bool': true},
+        client: mock,
+        store: HiveCacheStore(env: 'dev', box: box),
+        minimumFetchInterval: Duration.zero,
+      );
       addTearDown(client.dispose);
 
       expect(await client.fetchAndActivate(), isTrue);
@@ -96,8 +123,8 @@ void main() {
       expect(client.etag, equals('abc123'));
       expect(client.version, equals(1));
 
-      // Cache file on disk contains all five keys (incl. variants).
-      final onDisk = jsonDecode(await File(cachePath).readAsString()) as Map;
+      // Hive doc holds all five keys (incl. variants).
+      final onDisk = jsonDecode(box.get('cache_dev') as String) as Map;
       expect(onDisk.keys.toSet(), equals({'etag', 'version', 'fetchedAt', 'values', 'variants'}));
       expect(onDisk['etag'], equals('abc123'));
       expect(onDisk['version'], equals(1));
@@ -123,7 +150,7 @@ void main() {
         expect(req.headers['If-None-Match'], equals('etag-1'));
         return http.Response('', 304);
       });
-      final client = clientWith(mock);
+      final client = await clientWith(mock);
       addTearDown(client.dispose);
 
       expect(await client.fetchAndActivate(), isTrue);
@@ -134,19 +161,38 @@ void main() {
     });
 
     test('offline-cache: network failure keeps stale cache, no throw', () async {
-      // Seed the cache with one good fetch, then go offline.
+      // Seed the cache with one good fetch, then go offline. Both
+      // clients share one Hive box (the seeder persists, the offline
+      // client re-reads).
       final seed = MockClient((req) async {
         if (req.method == 'POST') {
           return http.Response('{"accepted":1,"status":202}', 202);
         }
         return http.Response(fetch200(values: {'flag_str': 'cached-live'}), 200);
       });
-      final seeder = clientWith(seed);
+      const boxName = 'cw-t12-offline';
+      openBoxes.add(boxName);
+      final box = await Hive.openBox(boxName);
+      final seeder = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: seed,
+        store: HiveCacheStore(env: 'dev', box: box),
+        minimumFetchInterval: Duration.zero,
+      );
       addTearDown(seeder.dispose);
       expect(await seeder.fetchAndActivate(), isTrue);
 
       final offline = MockClient((_) async => throw const SocketException('down'));
-      final client = clientWith(offline);
+      final client = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: offline,
+        store: HiveCacheStore(env: 'dev', box: box),
+        minimumFetchInterval: Duration.zero,
+      );
       addTearDown(client.dispose);
       await client.ensureInitialized();
       // ensureInitialized already attempted (and failed) a fetch; a direct
@@ -158,7 +204,7 @@ void main() {
 
     test('cold-defaults: offline with no cache serves in-app defaults, no throw', () async {
       final offline = MockClient((_) async => throw const SocketException('down'));
-      final client = clientWith(offline, defaults: {'welcome': 'hello', 'enabled': true});
+      final client = await clientWith(offline, defaults: {'welcome': 'hello', 'enabled': true});
       addTearDown(client.dispose);
       await client.ensureInitialized();
       expect(client.lastFetchStatus, equals(FetchStatus.error));
@@ -177,7 +223,7 @@ void main() {
           200,
         );
       });
-      final client = clientWith(mock);
+      final client = await clientWith(mock);
       addTearDown(client.dispose);
       expect(await client.fetchAndActivate(), isTrue);
       expect(client.getBool('flag_bool', fallback: true), isTrue);
@@ -193,12 +239,14 @@ void main() {
         gets++;
         return http.Response(fetch200(), 200);
       });
+      const throttleBox = 'cw-t12-throttle';
+      openBoxes.add(throttleBox);
       final client = ConfigWire(
         apiKey: 'test-key',
         env: 'dev',
         baseUrl: 'http://localhost:8090',
         client: mock,
-        cacheFile: cachePath,
+        store: HiveCacheStore(env: 'dev', box: await Hive.openBox(throttleBox)),
         minimumFetchInterval: const Duration(hours: 12),
       );
       addTearDown(client.dispose);
@@ -217,7 +265,7 @@ void main() {
         gets++;
         return http.Response(fetch200(etag: 'e$gets', version: gets), 200);
       });
-      final client = clientWith(mock);
+      final client = await clientWith(mock);
       addTearDown(client.dispose);
       expect(await client.fetchAndActivate(), isTrue);
       expect(await client.fetchAndActivate(), isTrue);
@@ -236,7 +284,7 @@ void main() {
         if (calls == 1) return http.Response(fetch200(values: {'k': 'good'}), 200);
         return http.Response('this is not json{{{', 200);
       });
-      final client = clientWith(mock);
+      final client = await clientWith(mock);
       addTearDown(client.dispose);
       expect(await client.fetchAndActivate(), isTrue);
       expect(await client.fetchAndActivate(), isFalse);
@@ -254,7 +302,7 @@ void main() {
         if (calls == 1) return http.Response(fetch200(values: {'k': 'good'}), 200);
         return http.Response('boom', 500);
       });
-      final client = clientWith(mock);
+      final client = await clientWith(mock);
       addTearDown(client.dispose);
       expect(await client.fetchAndActivate(), isTrue);
       expect(await client.fetchAndActivate(), isFalse);
@@ -267,13 +315,15 @@ void main() {
         await Future<void>.delayed(const Duration(seconds: 30));
         return http.Response(fetch200(), 200);
       });
+      const timeoutBox = 'cw-t12-timeout';
+      openBoxes.add(timeoutBox);
       final client = ConfigWire(
         apiKey: 'test-key',
         env: 'dev',
         baseUrl: 'http://localhost:8090',
         defaults: {'d': 'default'},
         client: hanging,
-        cacheFile: cachePath,
+        store: HiveCacheStore(env: 'dev', box: await Hive.openBox(timeoutBox)),
         minimumFetchInterval: Duration.zero,
         fetchTimeout: const Duration(milliseconds: 200),
       );
@@ -291,7 +341,7 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 20));
         return http.Response(fetch200(values: {'k': 'v'}), 200);
       });
-      final client = clientWith(mock);
+      final client = await clientWith(mock);
       addTearDown(client.dispose);
       final results = await Future.wait([client.fetchAndActivate(), client.fetchAndActivate()]);
       // No lock: both run to completion; last-completes-wins. Either
@@ -314,7 +364,7 @@ void main() {
           200,
         );
       });
-      final client = clientWith(mock);
+      final client = await clientWith(mock);
       addTearDown(client.dispose);
       expect(await client.fetchAndActivate(), isTrue);
       expect(client.getVariant('flag_a'), isNull);
@@ -334,7 +384,7 @@ void main() {
         gotUid = req.url.queryParameters['uid'];
         return http.Response(fetch200(), 200);
       });
-      final client = clientWith(mock);
+      final client = await clientWith(mock);
       addTearDown(client.dispose);
       await client.fetchAndActivate(userId: 'qa-user-7');
       expect(gotUid, equals('qa-user-7'));

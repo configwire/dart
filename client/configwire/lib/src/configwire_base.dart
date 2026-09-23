@@ -9,6 +9,7 @@ import 'realtime.dart';
 
 export 'cache.dart';
 export 'events.dart';
+export 'hive_store.dart';
 export 'realtime.dart';
 
 /// Result of the last fetch attempt.
@@ -30,11 +31,15 @@ enum FetchStatus {
   error,
 }
 
-/// Pure-Dart ConfigWire client: offline-first fetch + file cache (todo 12).
+/// Pure-Dart ConfigWire client: offline-first fetch + pluggable cache.
 ///
-/// Lifecycle: [ensureInitialized] loads the cache file into memory, then
+/// Lifecycle: [ensureInitialized] loads the cache into memory, then
 /// [fetchAndActivate] refreshes from the server. All reads are synchronous
 /// typed getters over the in-memory view.
+///
+/// Persistence is bring-your-own: pass a [HiveCacheStore] over a
+/// host-opened Hive box (works on Dart VM, Flutter via `Hive.initFlutter`,
+/// and Web via IndexedDB). The default is an in-memory store (no disk).
 ///
 /// Value layering: the in-memory view is `{...defaults, ...serverValues}`
 /// — in-app [defaults] are the underlay so a fresh env (server 200 with
@@ -58,14 +63,13 @@ class ConfigWire {
     required this.env,
     required this.baseUrl,
     Map<String, Object?> defaults = const {},
-    http.Client? client,
-    String? cacheFile,
+    this._client,
     this.minimumFetchInterval = const Duration(hours: 12),
     this.fetchTimeout = const Duration(seconds: 60),
-  })  : _defaults = Map<String, Object?>.from(defaults),
-        _values = Map<String, Object?>.from(defaults),
-        _client = client,
-        cacheFile = cacheFile ?? '.configwire_$env-cache.json';
+    CacheStore? store,
+  }) : _defaults = Map<String, Object?>.from(defaults),
+       _values = Map<String, Object?>.from(defaults),
+       _store = store ?? MemoryCacheStore();
 
   final String apiKey;
   final String env;
@@ -83,10 +87,11 @@ class ConfigWire {
   final http.Client? _client;
   http.Client? _owned;
 
-  /// Cache file path. Default: `.configwire_<env>-cache.json` in the
-  /// current working directory (RISK: cwd-dependent; pass an explicit
-  /// app-documents path in production — see notepad T12 entry).
-  final String cacheFile;
+  /// Cache persistence. When null at construction, an in-memory store
+  /// is used (session only, no disk); pass `HiveCacheStore(box: ...)`
+  /// over a host-opened Hive box for disk persistence on VM, Flutter,
+  /// or Web (IndexedDB).
+  final CacheStore _store;
 
   /// Minimum time between server fetches; `Duration.zero` disables
   /// throttling (dev). Default 12h. Only successful fetches (200/304)
@@ -172,7 +177,7 @@ class ConfigWire {
 
   http.Client get _http => _client ?? (_owned ??= http.Client());
 
-  /// Loads the cache file into memory, then runs [fetchAndActivate]
+  /// Loads the cache into memory, then runs [fetchAndActivate]
   /// with `force: true` so the server refresh is never throttled by
   /// [minimumFetchInterval] (a fresh cache arms the throttle via
   /// [_applyServerValues]).
@@ -180,7 +185,14 @@ class ConfigWire {
   /// fetch resolves (which itself never throws); a failed fetch keeps
   /// the cached values (or defaults on a cold cache).
   Future<void> ensureInitialized({String? userId}) async {
-    final cached = await loadCacheFile(cacheFile);
+    CacheData? cached;
+    try {
+      cached = await _store.load();
+    } catch (_) {
+      // A throwing store behaves as a cold cache: defaults until the
+      // fetch resolves (which itself never throws).
+      cached = null;
+    }
     if (cached != null) {
       _applyServerValues(
         values: cached.values,
@@ -231,8 +243,9 @@ class ConfigWire {
         // Stored verbatim; the server 304s on EXACT match only.
         headers['If-None-Match'] = _etag!;
       }
-      final resp =
-          await client.get(uri, headers: headers).timeout(fetchTimeout);
+      final resp = await client
+          .get(uri, headers: headers)
+          .timeout(fetchTimeout);
 
       if (resp.statusCode == 304) {
         _lastFetchAt = now;
@@ -264,8 +277,7 @@ class ConfigWire {
 
       // Best-effort persistence + analytics: neither may fail the fetch.
       try {
-        await saveCacheFile(
-          cacheFile,
+        await _store.save(
           CacheData(
             etag: _etag ?? parsed.etag,
             version: _version,
@@ -309,9 +321,7 @@ class ConfigWire {
       ..addAll(values);
     _variants
       ..clear()
-      ..addEntries(
-        variants.entries.where((e) => e.value.isNotEmpty),
-      );
+      ..addEntries(variants.entries.where((e) => e.value.isNotEmpty));
     _etag = etag;
     _version = version;
     // Cache-loaded rows arm the throttle (offline-first: a fresh cache
@@ -391,7 +401,12 @@ class ConfigWire {
 
 /// Parsed 200 body; null when the body is not a well-formed fetch document.
 class _FetchDoc {
-  _FetchDoc({required this.values, required this.variants, required this.etag, required this.version});
+  _FetchDoc({
+    required this.values,
+    required this.variants,
+    required this.etag,
+    required this.version,
+  });
 
   final Map<String, Object?> values;
   final Map<String, String> variants;
@@ -417,9 +432,7 @@ _FetchDoc? _parseFetchBody(String body) {
       }
     }
     final version = m['version'];
-    final v = version is int
-        ? version
-        : (version is num ? version.toInt() : 0);
+    final v = version is int ? version : (version is num ? version.toInt() : 0);
     return _FetchDoc(
       values: Map<String, Object?>.from(values),
       variants: variants,

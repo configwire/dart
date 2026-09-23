@@ -17,7 +17,7 @@ lint:
 	cd server && test -z "$$(gofmt -l .)" && go vet ./...
 	cd client/configwire && dart analyze
 	test -z "$$(grep -rn "dart:ui\|package:flutter" client/configwire/lib || true)"
-	test -z "$$(grep -rn "localStorage\|package:web\|dart:js\|PlatformCacheStore\|hive_ce_flutter" client/configwire/lib || true)"
+	test -z "$$(grep -rn "localStorage\|package:web\|dart:js\|PlatformCacheStore\|h[i]ve_ce" client/configwire/lib || true)"
 	test -z "$$(grep -rn "import 'dart:io'" client/configwire/lib || true)"
 
 e2e:

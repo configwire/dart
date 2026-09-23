@@ -65,7 +65,7 @@ class ConfigWire {
   })  : _defaults = Map<String, Object?>.from(defaults),
         _values = Map<String, Object?>.from(defaults),
         _client = client,
-        cacheFile = cacheFile ?? '.config_wire_$env-cache.json';
+        cacheFile = cacheFile ?? '.configwire_$env-cache.json';
 
   final String apiKey;
   final String env;
@@ -83,7 +83,7 @@ class ConfigWire {
   final http.Client? _client;
   http.Client? _owned;
 
-  /// Cache file path. Default: `.config_wire_<env>-cache.json` in the
+  /// Cache file path. Default: `.configwire_<env>-cache.json` in the
   /// current working directory (RISK: cwd-dependent; pass an explicit
   /// app-documents path in production — see notepad T12 entry).
   final String cacheFile;

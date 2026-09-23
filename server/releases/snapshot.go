@@ -75,12 +75,14 @@ var validFlagTypes = map[string]bool{
 	eval.TypeJSON:   true,
 }
 
+// SnapshotRule is one prioritized conditional value inside a snapshot flag.
 type SnapshotRule struct {
 	Priority  int `json:"priority"`
 	Condition any `json:"condition"`
 	Value     any `json:"value"`
 }
 
+// SnapshotFlag is one flag entry in the frozen publish payload.
 type SnapshotFlag struct {
 	Key     string         `json:"key"`
 	Type    string         `json:"type"`
@@ -89,6 +91,7 @@ type SnapshotFlag struct {
 	Rules   []SnapshotRule `json:"rules"`
 }
 
+// SnapshotExperiment is one experiment row in the frozen publish payload, scoped to the env project.
 type SnapshotExperiment struct {
 	ID       string `json:"id"`
 	Flag     string `json:"flag"`
@@ -109,6 +112,7 @@ func EtagFor(version int, snapshot []byte) string {
 	return hex.EncodeToString(sum[:])[:16]
 }
 
+// NextVersion returns the next version after currentMax (max+1, starting at 1).
 func NextVersion(currentMax int) int {
 	return currentMax + 1
 }
@@ -441,6 +445,7 @@ func ValidateSnapshot(snap Snapshot) error {
 	return nil
 }
 
+// MaxVersionForEnv returns the env's current max release version, or 0 when none exists.
 func MaxVersionForEnv(app core.App, envID string) (int, error) {
 	recs, err := app.FindAllRecords("releases")
 	if err != nil {

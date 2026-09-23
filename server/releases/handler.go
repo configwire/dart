@@ -1,7 +1,7 @@
-// HTTP wiring for the releases path: publish + rollback
-// routes, both superuser-only. No SDK-key auth here by design — admin
-// routes never accept X-ConfigWire-Key (a request carrying only an SDK
-// key has no superuser token, so RequireSuperuserAuth answers 401).
+// Package releases wires the publish + rollback routes, both superuser-only.
+// No SDK-key auth here by design — admin routes never accept
+// X-ConfigWire-Key (a request carrying only an SDK key has no superuser
+// token, so RequireSuperuserAuth answers 401).
 package releases
 
 import (
@@ -180,7 +180,9 @@ type ReleaseRow struct {
 }
 
 var (
-	ErrReleaseNotFound  = errors.New("unknown release version")
+	// ErrReleaseNotFound reports no release row matched the requested version.
+	ErrReleaseNotFound = errors.New("unknown release version")
+	// ErrReleaseAmbiguous reports several rows share one version, so RollbackPick refuses to guess.
 	ErrReleaseAmbiguous = errors.New("ambiguous release version")
 )
 

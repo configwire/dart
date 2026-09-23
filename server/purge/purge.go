@@ -36,7 +36,9 @@ import (
 )
 
 const (
+	// RawRetentionDays bounds raw event lifetime before rollup-then-delete.
 	RawRetentionDays    = 30
+	// RollupRetentionDays bounds daily aggregate lifetime.
 	RollupRetentionDays = 90
 	// rollupExtraDays derives the event_daily cutoff from the raw-events
 	// cutoff passed to PurgeOlderThan: 90d - 30d = 60d further back.
@@ -53,6 +55,7 @@ type EventRow struct {
 	Ts      time.Time
 }
 
+// Rollup is one per-(day, env, flag, variant) aggregate bucket stored in event_daily.
 type Rollup struct {
 	Day       time.Time // UTC midnight of the event day
 	EnvID     string

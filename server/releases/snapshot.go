@@ -75,14 +75,12 @@ var validFlagTypes = map[string]bool{
 	eval.TypeJSON:   true,
 }
 
-// SnapshotRule is one ordered conditional value inside a flag.
 type SnapshotRule struct {
 	Priority  int `json:"priority"`
 	Condition any `json:"condition"`
 	Value     any `json:"value"`
 }
 
-// SnapshotFlag is one flag with its ordered rules.
 type SnapshotFlag struct {
 	Key     string         `json:"key"`
 	Type    string         `json:"type"`
@@ -91,7 +89,6 @@ type SnapshotFlag struct {
 	Rules   []SnapshotRule `json:"rules"`
 }
 
-// SnapshotExperiment is one experiment row, included as-is.
 type SnapshotExperiment struct {
 	ID       string `json:"id"`
 	Flag     string `json:"flag"`
@@ -106,31 +103,22 @@ type Snapshot struct {
 	Experiments []SnapshotExperiment `json:"experiments"`
 }
 
-// EtagFor derives the release etag from the new version number and the
-// canonical snapshot bytes: hex(sha256(version+":"+snapshot))[:16].
-// Same inputs -> same etag; any version bump -> fresh etag even when the
-// snapshot bytes are identical (rollback requirement).
+// EtagFor bumps the etag on every version bump even when snapshot bytes are identical (rollback requirement).
 func EtagFor(version int, snapshot []byte) string {
 	sum := sha256.Sum256([]byte(fmt.Sprintf("%d:%s", version, snapshot)))
 	return hex.EncodeToString(sum[:])[:16]
 }
 
-// NextVersion returns the version number for a new release row given the
-// env's current max version (0 when no release exists yet).
 func NextVersion(currentMax int) int {
 	return currentMax + 1
 }
 
-// CheckBaseVersion reports whether a publish request's baseVersion matches
-// the env's current max version. Mismatch -> caller returns 409 with
-// currentVersion and performs NO write.
+// CheckBaseVersion mismatch -> caller returns 409 with currentVersion and performs NO write.
 func CheckBaseVersion(baseVersion, currentMax int) bool {
 	return baseVersion == currentMax
 }
 
-// MarshalCanonical renders a snapshot to its canonical bytes (struct field
-// order + sorted flags/rules from the builder). The etag is computed over
-// exactly these bytes.
+// MarshalCanonical renders canonical bytes; the etag is computed over exactly these bytes.
 func MarshalCanonical(snap Snapshot) ([]byte, error) {
 	if snap.Flags == nil {
 		snap.Flags = []SnapshotFlag{}
@@ -141,8 +129,6 @@ func MarshalCanonical(snap Snapshot) ([]byte, error) {
 	return json.Marshal(snap)
 }
 
-// jsonAny normalizes a PocketBase record field value (types.JSONRaw,
-// string, []byte, or already-decoded any) into plain Go values.
 func jsonAny(v any) any {
 	switch t := v.(type) {
 	case nil:
@@ -195,9 +181,8 @@ func BuildSnapshot(app core.App, env *core.Record) (Snapshot, error) {
 	if err != nil {
 		return snap, err
 	}
-	// Index flags of this project by record id.
 	byID := map[string]*core.Record{}
-	flagKeys := map[string]string{} // flag record id -> flag key
+	flagKeys := map[string]string{}
 	for _, fr := range flagRecs {
 		if fr.GetString("project") != projectID {
 			continue
@@ -214,7 +199,7 @@ func BuildSnapshot(app core.App, env *core.Record) (Snapshot, error) {
 	for _, rr := range ruleRecs {
 		flagID := rr.GetString("flag")
 		if _, ok := byID[flagID]; !ok {
-			continue // rule on a flag outside this env's project
+			continue
 		}
 		rulesByFlag[flagID] = append(rulesByFlag[flagID], SnapshotRule{
 			Priority:  rr.GetInt("priority"),
@@ -413,11 +398,7 @@ func validateCondition(flagKey string, ruleIndex int, cond any) error {
 	return nil
 }
 
-// ValidateSnapshot runs the publish dry-assemble checks over a built
-// snapshot (no writes): non-empty, key shape, 1000/project cap, flag
-// types with JSON type-coercion of defaults and rule values, per-rule
-// condition shape (field/op allowlists mirroring eval, value key present),
-// and eval.ValidateExperiment reuse for every included experiment.
+// ValidateSnapshot runs the publish dry-assemble checks (no writes).
 func ValidateSnapshot(snap Snapshot) error {
 	if len(snap.Flags) == 0 {
 		return errors.New("nothing to publish: no flags in this env's project")
@@ -460,8 +441,6 @@ func ValidateSnapshot(snap Snapshot) error {
 	return nil
 }
 
-// MaxVersionForEnv scans releases for the env's current max version
-// (0 when no release exists yet).
 func MaxVersionForEnv(app core.App, envID string) (int, error) {
 	recs, err := app.FindAllRecords("releases")
 	if err != nil {

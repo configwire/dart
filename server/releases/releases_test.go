@@ -9,7 +9,6 @@ import (
 	"configwire/eval"
 )
 
-// goodVariants returns a valid 50/50 variant table for tests.
 func goodVariants() any {
 	return []any{
 		map[string]any{"name": "control", "weightBps": float64(5000)},
@@ -176,12 +175,12 @@ func TestValidateSnapshotRejectsCap(t *testing.T) {
 
 func TestValidateSnapshotRejectsTypeMismatch(t *testing.T) {
 	snap := goodSnapshot()
-	snap.Flags[0].Default = true // string flag with bool default
+	snap.Flags[0].Default = true
 	if err := ValidateSnapshot(snap); err == nil {
 		t.Fatal("default/type mismatch must be rejected")
 	}
 	snap = goodSnapshot()
-	snap.Flags[1].Rules = []SnapshotRule{{Priority: 1, Condition: nil, Value: "yes"}} // bool flag, string rule value
+	snap.Flags[1].Rules = []SnapshotRule{{Priority: 1, Condition: nil, Value: "yes"}}
 	if err := ValidateSnapshot(snap); err == nil {
 		t.Fatal("rule value/type mismatch must be rejected")
 	}

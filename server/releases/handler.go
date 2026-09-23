@@ -36,7 +36,6 @@ func Register(se *core.ServeEvent) {
 	se.Router.POST("/api/v1/admin/env/{env}/releases/{version}/rollback", postRollbackEnv).Bind(apis.RequireSuperuserAuth())
 }
 
-// publishRequest is the POST .../publish body. Note is optional;
 // baseVersion is required and must equal the env's current max version
 // (0 on first publish). A baseVersion sent as a JSON string fails body
 // decoding -> 400.
@@ -45,13 +44,10 @@ type publishRequest struct {
 	BaseVersion int    `json:"baseVersion"`
 }
 
-// rollbackRequest is the POST .../rollback body. Note is optional.
 type rollbackRequest struct {
 	Note string `json:"note"`
 }
 
-// callerAuthor identifies the publish/rollback author from the
-// authenticated superuser record (email preferred, id fallback).
 func callerAuthor(re *core.RequestEvent) string {
 	if re.Auth != nil {
 		if email := re.Auth.GetString("email"); email != "" {
@@ -64,9 +60,8 @@ func callerAuthor(re *core.RequestEvent) string {
 	return "superuser"
 }
 
-// decodeBody decodes a JSON body into dst. Empty bodies -> 400
-// (BindBody alone would silently return nil); malformed JSON or wrong
-// field types -> 400.
+// Empty bodies -> 400 (BindBody alone would silently return nil);
+// malformed JSON or wrong field types -> 400.
 func decodeBody(re *core.RequestEvent, dst any) error {
 	if re.Request.ContentLength == 0 {
 		return re.BadRequestError("empty body: expected a JSON object.", nil)
@@ -184,7 +179,6 @@ type ReleaseRow struct {
 	Version int
 }
 
-// Rollback selection outcomes.
 var (
 	ErrReleaseNotFound  = errors.New("unknown release version")
 	ErrReleaseAmbiguous = errors.New("ambiguous release version")
@@ -281,8 +275,6 @@ func decodeRollbackNote(re *core.RequestEvent, req *rollbackRequest) error {
 	return nil
 }
 
-// parseRollbackVersion parses the {version} path param shared by both
-// rollback routes: non-integer versions are 400.
 func parseRollbackVersion(re *core.RequestEvent) (int, error) {
 	n, err := strconv.Atoi(re.Request.PathValue("version"))
 	if err != nil {

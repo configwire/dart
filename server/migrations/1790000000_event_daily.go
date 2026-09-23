@@ -1,6 +1,6 @@
 package migrations
 
-// ConfigWire retention rollups (plan todo 15, ADDITIVE only).
+// ConfigWire retention rollups (ADDITIVE only).
 //
 // Adds the event_daily collection that the server/purge job upserts into
 // BEFORE deleting raw events older than 30d. Daily aggregates live to 90d.

@@ -9,7 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
 
-/// Realtime (todo 14) suite: `RealtimeUpdater` SSE + poll fallback.
+/// Realtime suite: `RealtimeUpdater` SSE + poll fallback.
 ///
 /// The stream side is a LOCAL `dart:io` HttpServer test double (no
 /// dependency on the Go server); the fetch side is a MockClient-backed

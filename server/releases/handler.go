@@ -1,4 +1,4 @@
-// HTTP wiring for the releases path (plan todo 8): publish + rollback
+// HTTP wiring for the releases path: publish + rollback
 // routes, both superuser-only. No SDK-key auth here by design — admin
 // routes never accept X-ConfigWire-Key (a request carrying only an SDK
 // key has no superuser token, so RequireSuperuserAuth answers 401).

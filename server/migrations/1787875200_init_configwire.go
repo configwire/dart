@@ -1,13 +1,13 @@
 package migrations
 
-// ConfigWire data foundation (todo 5).
+// ConfigWire data foundation.
 //
 // Notes:
 //   - All API rules default-deny (nil); server code uses e.App /
 //     superuser context which bypasses rules.
 //   - releases rows are immutable enforced by hooks in main.go
 //     (OnRecordValidate + OnRecordUpdate deny any update;
-//     rollback creates new rows — todo 8).
+//     rollback creates new rows).
 //   - flags.key shape + 1000/project cap enforced by hooks in main.go.
 //   - experiments.variants JSON shape follows the T3 contract
 //     (server/eval/eval.go): [{name, weightBps (sum 10000), values}].

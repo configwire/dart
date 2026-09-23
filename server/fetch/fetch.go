@@ -1,8 +1,8 @@
-// Package fetch implements the SDK delivery endpoint (plan todo 10).
+// Package fetch implements the SDK delivery endpoint.
 //
 //	GET /api/v1/env/:env/config?platform=&appVersion=&locale=&country=&uid=&attrs=<json>&exp=<status>
 //
-// FETCH CONTRACT (T12/T13/T14/T17 read this):
+// FETCH CONTRACT:
 //   - Auth: X-ConfigWire-Key via ingest.RequireSDKKey reuse. Unknown, missing,
 //     revoked, or env-mismatched keys -> 401. SDK keys and userIDs are never
 //     logged (hashes only); evaluation cost is O(flags + rules) per request.

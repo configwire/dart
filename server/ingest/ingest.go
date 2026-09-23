@@ -1,7 +1,7 @@
-// Package ingest implements the analytics events write path (plan todo 9).
+// Package ingest implements the analytics events write path.
 //
-// Accepted JSON (defined here because T7's server/eval/experiment.go has not
-// landed yet; T7 is parallel-disjoint, coordinate via notepad not edits):
+// Accepted JSON (defined here; the experiment variant overlay lives in
+// server/eval/experiment.go):
 //
 //	POST /api/v1/env/:env/events
 //	Header: X-ConfigWire-Key: <full sdk key>

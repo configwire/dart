@@ -1,6 +1,6 @@
 // Package eval is the pure condition-evaluation contract for ConfigWire.
 //
-// CROSS-TASK CONTRACT (todo 3 defines, todo 6 implements):
+// CROSS-TASK CONTRACT:
 //
 //	Evaluate(flag Flag, rules []Rule, ctx Context) any
 //	  - No DB, no network, no I/O. Pure function.
@@ -96,7 +96,7 @@ type Context struct {
 	PercentileSeed string         `json:"percentileSeed"`
 }
 
-// Values (added todo 7, optional) holds per-flag overrides keyed by flag
+// Values (optional) holds per-flag overrides keyed by flag
 // key: Values[flag.Key]. Only EvaluateWithExperiment (experiment.go) reads
 // it; Assign/Bucket/Evaluate ignore it, so existing behavior is unchanged.
 type Variant struct {

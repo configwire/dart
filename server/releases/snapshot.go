@@ -1,4 +1,4 @@
-// Package releases implements the ConfigWire versioning heart (plan todo 8).
+// Package releases implements the ConfigWire versioning heart.
 //
 // FROZEN SNAPSHOT SCHEMA (T10 contract — no deviations):
 //
@@ -58,7 +58,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// Flag key shape mirrors the main.go hook (todo 5) so the dry assemble
+// Flag key shape mirrors the main.go hook so the dry assemble
 // rejects exactly what the write path would reject.
 var flagKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 

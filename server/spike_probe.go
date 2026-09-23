@@ -1,6 +1,6 @@
 package main
 
-// SPIKE (todo 2) — route skeleton candidate, production stream shape.
+// SPIKE — route skeleton candidate, production stream shape.
 // GET /stream uses real SDK-key auth (ingest.RequireSDKKey reuse) and holds
 // a long-lived SSE connection with `: ping` keepalives; freshness beyond
 // push is covered by the documented 15min poll fallback. POST /spike/publish
@@ -21,7 +21,7 @@ import (
 // Never production: GET /stream authenticates via ingest.RequireSDKKey.
 const spikeSDKKey = "spike"
 
-// NOTE (todo 10): the spike GET /api/v1/env/{env}/config was REMOVED here —
+// NOTE: the spike GET /api/v1/env/{env}/config was REMOVED here —
 // the real SDK delivery endpoint (server/fetch) owns that path now. Spike
 // /stream + /spike/publish stay for T14.
 func registerSpikeRoutes(se *core.ServeEvent) {

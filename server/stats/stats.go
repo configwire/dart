@@ -128,7 +128,7 @@ func FlagFound(flagKey string, matched bool) bool {
 // verbatim request values, since/sinceDays/horizon carry the EFFECTIVE
 // window after the 90d clamp, cutoff is the UTC RFC3339 window start,
 // and rollupHorizon is the UTC RFC3339 midnight that splits raw events
-// from pre-purge daily rollups (see HorizonFor). horizon keeps its Todo 1
+// from pre-purge daily rollups (see HorizonFor). horizon keeps its original
 // label meaning ("7d"); rollupHorizon is the additive machine-readable
 // split point, so old clients keep parsing horizon untouched.
 func EchoFor(envSlug, flagKey string, days int, cutoff, horizon time.Time) map[string]any {

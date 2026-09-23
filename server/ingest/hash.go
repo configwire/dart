@@ -25,7 +25,7 @@ func KeyHash(fullKey string) string {
 // Raw IDs must be hashed at the edge and
 // dropped — only this digest reaches the events table.
 // Empty input -> "" (matches eval.HashUserID's frozen contract exactly;
-// either function may be used by later todos).
+// either function satisfies the contract).
 func HashUser(userID string) string {
 	if userID == "" {
 		return ""

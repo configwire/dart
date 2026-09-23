@@ -326,7 +326,7 @@ class ConfigWire {
     _lastFetchAt = fetchedAt;
   }
 
-  /// Starts live updates: SSE stream + poll fallback (todo 14).
+  /// Starts live updates: SSE stream + poll fallback.
   ///
   /// Every valid `config_update` event AND every [pollInterval] tick
   /// runs `fetchAndActivate(force: true)`; a values snapshot is added

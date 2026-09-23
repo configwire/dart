@@ -1,9 +1,8 @@
-// Vectors suite pinning the evaluator contract todo 6 must implement.
+// Vectors suite pinning the evaluator contract (todo 6, implemented).
 //
-// EXPECTED STATE: RED. Stubs in eval.go return defaults, so every vector
-// whose expected observable is a non-default value FAILS (marked
-// TODO(todo6)). Vectors asserting fallthrough-to-default PASS even against
-// stubs, proving invalid inputs never panic and never error.
+// EXPECTED STATE: GREEN. Every vector asserts the live implementation;
+// fallthrough-to-default vectors prove invalid inputs never panic and
+// never error.
 //
 // Coverage: type coercion incl. mismatches, first-true ordering (3 ordered
 // rules), semver ops + invalid-semver fallthrough, locale/country,
@@ -22,8 +21,7 @@ import (
 )
 
 // oracleBucket duplicates the contract formula so vectors stay
-// self-consistent: int(fnv64a(userID+seed) % 10000). Todo 6 must implement
-// the identical formula in Bucket.
+// self-consistent: int(fnv64a(userID+seed) % 10000), identical to Bucket.
 func oracleBucket(userID, seed string) int {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(userID + seed))
@@ -164,7 +162,7 @@ func TestVectors(t *testing.T) {
 				mustJSON(t, tc.ctxJSON, &ctx)
 				var want any
 				mustJSON(t, tc.wantJSON, &want)
-				got := Evaluate(flag, rules, ctx) // TODO(todo6): stub returns default; impl must return first-match
+				got := Evaluate(flag, rules, ctx)
 				if canon(got) != canon(want) {
 					t.Errorf("TODO(todo6) vector %s: input flag=%s rules=%s ctx=%s: got %s want %s",
 						tc.name, tc.flagJSON, rulesRaw, tc.ctxJSON, canon(got), canon(want))
@@ -175,7 +173,7 @@ func TestVectors(t *testing.T) {
 				want := strings.ReplaceAll(tc.wantJSON, "$ORACLE", strconv.Quote(oracleVariant(exp, tc.userID)))
 				var wantStr string
 				mustJSON(t, want, &wantStr)
-				got := Assign(exp, tc.userID) // TODO(todo6): stub returns DefaultVariant
+				got := Assign(exp, tc.userID)
 				if again := Assign(exp, tc.userID); again != got {
 					t.Errorf("TODO(todo6) vector %s: sticky re-check flapped: %q vs %q", tc.name, got, again)
 				}
@@ -187,7 +185,7 @@ func TestVectors(t *testing.T) {
 					strconv.Itoa(oracleBucket(tc.bucketUser, tc.bucketSeed)))
 				var wantNum float64
 				mustJSON(t, want, &wantNum)
-				got := Bucket(tc.bucketUser, tc.bucketSeed) // TODO(todo6): stub returns -1
+				got := Bucket(tc.bucketUser, tc.bucketSeed)
 				if float64(got) != wantNum {
 					t.Errorf("TODO(todo6) vector %s: bucket(%q+%q): got %d want %v",
 						tc.name, tc.bucketUser, tc.bucketSeed, got, want)
@@ -214,7 +212,7 @@ func TestVectors(t *testing.T) {
 		}
 		for i, b := range first {
 			if b < 0 || b > 9999 {
-				t.Errorf("TODO(todo6) bucket out of range at %d: %d", i, b) // TODO(todo6): stub returns -1
+				t.Errorf("TODO(todo6) bucket out of range at %d: %d", i, b)
 				break
 			}
 		}
@@ -293,7 +291,7 @@ func TestVectors(t *testing.T) {
 			mustJSON(t, string(raw), &flag)
 			var want any
 			mustJSON(t, wantRaw, &want)
-			got := Evaluate(flag, rules, ctx) // TODO(todo6): stub returns default
+			got := Evaluate(flag, rules, ctx)
 			if canon(got) != canon(want) {
 				t.Errorf("TODO(todo6) fixture %s: got %s want %s", file, canon(got), canon(want))
 			}

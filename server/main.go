@@ -20,7 +20,7 @@ import (
 	"configwire/stats"
 )
 
-// ConfigWire data-integrity hooks (todo 5).
+// ConfigWire data-integrity hooks.
 // Flag key shape + per-project cap and releases immutability live in
 // code (not collection options) so they apply to every write path
 // (API, dashboard, server-side e.App saves).
@@ -43,8 +43,7 @@ func checkFlagKey(key string) error {
 //
 //	SELECT COUNT(*) FROM flags WHERE project = '<projectId>'
 //
-// Implemented via FindAllRecords + in-Go filter (no extra deps;
-// go.mod is owned by another todo).
+// Implemented via FindAllRecords + in-Go filter (no extra deps by design).
 func countProjectFlags(app core.App, project string) (int64, error) {
 	records, err := app.FindAllRecords("flags")
 	if err != nil {
@@ -61,7 +60,7 @@ func countProjectFlags(app core.App, project string) (int64, error) {
 
 func registerConfigwireHooks(app core.App) {
 	// Releases are immutable: rollback republishes the old snapshot
-	// as a NEW row (todo 8).
+	// as a NEW row.
 	releasesImmutable := errors.New("releases are immutable: publish a new release instead")
 	app.OnRecordUpdate("releases").BindFunc(func(e *core.RecordEvent) error {
 		return releasesImmutable

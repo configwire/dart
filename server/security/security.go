@@ -1,6 +1,6 @@
 // OWNERSHIP: this helper is called ONLY from the request paths owned by
 // the releases, stats, and fetch packages (their files). server/main.go
-// wiring is owned by another todo — never add calls there.
+// wiring is owned by server/main.go — never add calls there.
 //
 // Headers (static values, no behavior change):
 //   - X-Content-Type-Options: nosniff (block MIME sniffing)

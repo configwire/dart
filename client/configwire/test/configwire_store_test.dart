@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
 
-/// Core wiring suite (todo 2): ConfigWire accepts a CacheStore.
+/// Core wiring suite: ConfigWire accepts a CacheStore.
 ///
 /// FakeStore is in-memory; adversarial probes: explicit store bypasses
 /// the memory default with zero disk touch, throwing saves still

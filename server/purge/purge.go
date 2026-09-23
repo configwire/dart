@@ -1,4 +1,4 @@
-// Package purge enforces the compliance retention policy (plan todo 15):
+// Package purge enforces the compliance retention policy:
 // raw events die at 30d, daily aggregates live to 90d.
 //
 // Rollup-before-delete runs in the SAME operation: rows strictly older

@@ -351,7 +351,7 @@ Push is best-effort (near-instant while connected; no sub-second
 guarantee). Otherwise freshness is at most `pollInterval` (Dart
 default 15min) plus one fetch: the client poller runs in every state
 (stream healthy, down, or 401), so the bound holds on all paths.
-Ref: `client/dart/lib/src/realtime.dart` (RealtimeUpdater), `docs/SECURITY.md` section 7.
+Ref: `client/configwire/lib/src/realtime.dart` (RealtimeUpdater), `docs/SECURITY.md` section 7.
 
 ## 10. Retention
 
@@ -364,8 +364,10 @@ clean re-run converges to `deleted: 0`). Ref: `server/purge/purge.go:70-83,124-1
 
 ## History
 
-Current names: Go module `configwire`, Dart package `config_wire`
-(`class ConfigWire`, default cache `.config_wire_<env>-cache.json`);
+Current names: Go module `configwire`, Dart package `configwire`
+(renamed from `config_wire`; `class ConfigWire`, default cache
+`.configwire_<env>-cache.json`, renamed from
+`.config_wire_<env>-cache.json`);
 SDK header `X-ConfigWire-Key`, env `CONFIGWIRE_CORS_ORIGIN`,
 collection ids `cw_*`, admin keys `cw_admin_*`. Keys carry the `cw-`
 prefix (first-8-chars prefix rule). Rotation procedure (reissue `cw-`

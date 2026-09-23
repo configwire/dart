@@ -15,7 +15,7 @@ Key facts (landed code, todos 5-7):
   `Missing or invalid SDK key.` on fetch, ingest, and stream.
 - Admin session keys are `cw_admin_*` localStorage (memory-first copy;
   logout clears both).
-- Stale Dart `.config_wire_*-cache.json` files rebuild on the next
+- Stale Dart `.configwire_*-cache.json` files rebuild on the next
   fetch (schema unchanged).
 
 ## Procedure (scratch-port script, copy-paste verbatim)
@@ -133,9 +133,9 @@ Receipt: `curl $BASE/hello` refuses and `lsof -ti:8120` is empty.
 
 ## Client notes
 
-- Dart (`config_wire` package, `ConfigWire` class): import
-  `package:config_wire/config_wire.dart`; the client sends
-  `X-ConfigWire-Key`. Stale `.config_wire_*-cache.json` files rebuild
+- Dart (`configwire` package, `ConfigWire` class): import
+  `package:configwire/configwire.dart`; the client sends
+  `X-ConfigWire-Key`. Stale `.configwire_*-cache.json` files rebuild
   on the next fetch.
 - Admin UI: first load restores the stored session from localStorage.
   An empty or missing token lands on the

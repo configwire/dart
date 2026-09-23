@@ -1,11 +1,14 @@
 name: configwire
 description: Pure-Dart ConfigWire client (fetch, cache, typed getters, realtime).
 version: 0.0.1
+
 environment:
-  sdk: '>=3.12.0 <4.0.0'
+  sdk: ">=3.12.0 <4.0.0"
+
 dependencies:
   http: ^1.2.0
   crypto: ^3.0.0
+
 dev_dependencies:
   test: ^1.25.0
   lints: ^6.0.0

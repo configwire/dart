@@ -2,9 +2,10 @@ import 'cache_model.dart';
 import 'cache_store.dart';
 
 /// Holds the last saved row for the session only (no disk).
-/// Passing an explicit store (e.g. your own CacheStore) opts into
+/// Passing an explicit store (e.g. your own [CacheStore]) opts into
 /// persistence.
 class MemoryCacheStore implements CacheStore {
+  /// Creates a session-only store, optionally pre-seeded for tests.
   MemoryCacheStore({CacheData? seeded}) : _data = seeded;
 
   CacheData? _data;

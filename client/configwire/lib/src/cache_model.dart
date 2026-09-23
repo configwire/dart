@@ -23,10 +23,19 @@ class CacheData {
     Map<String, String>? variants,
   }) : variants = variants ?? {};
 
+  /// Etag served verbatim back via `If-None-Match` (exact match only).
   final String etag;
+
+  /// Latest activated release version (0 when nothing activated yet).
   final int version;
+
+  /// Time of the fetch that produced this row; arms the fetch throttle.
   final DateTime fetchedAt;
+
+  /// Server value layer, merged over in-app defaults by the caller.
   final Map<String, Object?> values;
+
+  /// Non-anonymous variant arms; `""` entries are omitted upstream.
   final Map<String, String> variants;
 
   Map<String, Object?> toJson() => {
@@ -71,7 +80,8 @@ class CacheData {
   }
 }
 
-/// Used to keep `dart:convert` referenced in this model-only library.
+/// Parses a raw JSON string into [CacheData], returning null on any
+/// misshapen input (bad JSON, wrong shapes, bad date) without throwing.
 CacheData? cacheDataFromJsonString(String raw) {
   try {
     final decoded = jsonDecode(raw);

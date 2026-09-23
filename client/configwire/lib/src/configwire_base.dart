@@ -70,8 +70,13 @@ class ConfigWire {
        _values = Map<String, Object?>.from(defaults),
        _store = store ?? MemoryCacheStore();
 
+  /// SDK key, sent only as the `X-ConfigWire-Key` header and never logged.
   final String apiKey;
+
+  /// Environment slug appended to `/api/v1/env/{env}/config`.
   final String env;
+
+  /// Base URL of the ConfigWire server (trailing slashes are stripped).
   final String baseUrl;
 
   /// In-app defaults (underlay; never mutated after construction).
@@ -135,21 +140,26 @@ class ConfigWire {
   /// Latest activated release version (0 when nothing activated yet).
   int get version => _version;
 
+  /// Returns the bool value for [key], or [fallback] when missing or mistyped.
   bool getBool(String key, {bool fallback = false}) {
     final v = _values[key] ?? _defaults[key];
     return v is bool ? v : fallback;
   }
 
+  /// Returns the String value for [key], or [fallback] when missing or mistyped.
   String getString(String key, {String fallback = ''}) {
     final v = _values[key] ?? _defaults[key];
     return v is String ? v : fallback;
   }
 
+  /// Returns the int value for [key], or [fallback] when missing or mistyped.
   int getInt(String key, {int fallback = 0}) {
     final v = _values[key] ?? _defaults[key];
     return v is int ? v : fallback;
   }
 
+  /// Returns the double value for [key], coercing ints via `toDouble()`,
+  /// or [fallback] when missing or mistyped.
   double getDouble(String key, {double fallback = 0.0}) {
     final v = _values[key] ?? _defaults[key];
     if (v is double) return v;
@@ -157,12 +167,14 @@ class ConfigWire {
     return fallback;
   }
 
+  /// Returns a copy of the JSON object at [key], or `{}` when missing or mistyped.
   Map<String, Object?> getJSON(String key) {
     final v = _values[key] ?? _defaults[key];
     if (v is Map) return Map<String, Object?>.from(v);
     return const {};
   }
 
+  /// Returns a copy of the live view (`{...defaults, ...serverValues}`).
   Map<String, Object?> getAll() => Map<String, Object?>.from(_values);
 
   /// Assigned experiment arm for [key], or null when the flag has no

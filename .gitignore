@@ -1,4 +1,4 @@
 .omo/
 server/pb_data/
-client/dart/.dart_tool/
+client/configwire/.dart_tool/
 server/configwire

@@ -1,4 +1,4 @@
-// Package eval is the pure condition-evaluation contract for ConfigNest.
+// Package eval is the pure condition-evaluation contract for ConfigWire.
 //
 // CROSS-TASK CONTRACT (todo 3 defines, todo 6 implements):
 //

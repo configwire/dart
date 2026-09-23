@@ -1,4 +1,4 @@
-// Package releases implements the ConfigNest versioning heart (plan todo 8).
+// Package releases implements the ConfigWire versioning heart (plan todo 8).
 //
 // FROZEN SNAPSHOT SCHEMA (T10 contract — no deviations):
 //

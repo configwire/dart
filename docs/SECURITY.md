@@ -6,7 +6,7 @@ binary plus operator procedure.
 
 ## 1. SDK keys — storage
 
-- The full key is an opaque string presented in `X-ConfigNest-Key`.
+- The full key is an opaque string presented in `X-ConfigWire-Key`.
 - `sdk_keys` rows store **only**:
   - `prefix` = first 8 chars of the full key (fast prefilter),
   - `hash` = lowercase `hex(sha256(fullKey))` (constant-time compare).
@@ -79,8 +79,10 @@ binary plus operator procedure.
 
 - Fetch responses (including `304`) send
   `Access-Control-Allow-Origin`, default **`*`** (Flutter/web dev).
-- Production: set `CONFIGNEST_CORS_ORIGIN=https://app.example.com`
-  (single origin, plain header, no infra). `OPTIONS` preflight →
+- Production: set `CONFIGWIRE_CORS_ORIGIN=https://app.example.com`
+  (single origin, plain header, no infra). The legacy
+  `CONFIGNEST_CORS_ORIGIN` is still honored as a fallback with a
+  one-line server deprecation warning. `OPTIONS` preflight →
   `204` with `Allow-Methods/Headers` + 86400s max-age.
 
 ## 6. Admin — superuser-only

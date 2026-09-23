@@ -1,6 +1,6 @@
 package migrations
 
-// ConfigNest data foundation (todo 5).
+// ConfigWire data foundation (todo 5).
 //
 // Defines the 9 base collections every later todo builds on:
 // projects, environments, groups, flags, rules, releases,
@@ -24,7 +24,7 @@ import (
 
 func init() {
 	m.Register(func(app core.App) error {
-		return createConfignestCollections(app)
+		return createConfigwireCollections(app)
 	}, func(app core.App) error {
 		// Reverse dependency order so relation targets drop last.
 		for _, name := range []string{
@@ -75,7 +75,7 @@ func denyAllRules(c *core.Collection) {
 	c.DeleteRule = nil
 }
 
-func newConfignestCollection(name, id string) *core.Collection {
+func newConfigwireCollection(name, id string) *core.Collection {
 	c := core.NewBaseCollection(name, id)
 	denyAllRules(c)
 	return c
@@ -90,27 +90,27 @@ func relation(name, target string, required bool) *core.RelationField {
 	}
 }
 
-func createConfignestCollections(app core.App) error {
-	projects := newConfignestCollection("projects", colProjects)
+func createConfigwireCollections(app core.App) error {
+	projects := newConfigwireCollection("projects", colProjects)
 	projects.Fields.Add(
 		&core.TextField{Name: "owner"},
 		&core.TextField{Name: "name", Required: true, Presentable: true},
 	)
 
-	environments := newConfignestCollection("environments", colEnvironments)
+	environments := newConfigwireCollection("environments", colEnvironments)
 	environments.Fields.Add(
 		relation("project", colProjects, true),
 		&core.TextField{Name: "slug", Required: true, Presentable: true},
 		&core.TextField{Name: "sdkKeyPrefix"},
 	)
 
-	groups := newConfignestCollection("groups", colGroups)
+	groups := newConfigwireCollection("groups", colGroups)
 	groups.Fields.Add(
 		&core.TextField{Name: "name", Required: true, Presentable: true},
 		relation("project", colProjects, true),
 	)
 
-	flags := newConfignestCollection("flags", colFlags)
+	flags := newConfigwireCollection("flags", colFlags)
 	flags.Fields.Add(
 		&core.TextField{
 			Name:     "key",
@@ -130,7 +130,7 @@ func createConfignestCollections(app core.App) error {
 		relation("project", colProjects, true),
 	)
 
-	rules := newConfignestCollection("rules", colRules)
+	rules := newConfigwireCollection("rules", colRules)
 	rules.Fields.Add(
 		relation("flag", colFlags, true),
 		&core.NumberField{Name: "priority", OnlyInt: true},
@@ -138,7 +138,7 @@ func createConfignestCollections(app core.App) error {
 		&core.JSONField{Name: "value"},
 	)
 
-	releases := newConfignestCollection("releases", colReleases)
+	releases := newConfigwireCollection("releases", colReleases)
 	releases.Fields.Add(
 		&core.NumberField{Name: "version", OnlyInt: true, Required: true},
 		&core.TextField{Name: "etag", Required: true},
@@ -148,7 +148,7 @@ func createConfignestCollections(app core.App) error {
 		relation("env", colEnvironments, true),
 	)
 
-	sdkKeys := newConfignestCollection("sdk_keys", colSDKKeys)
+	sdkKeys := newConfigwireCollection("sdk_keys", colSDKKeys)
 	sdkKeys.Fields.Add(
 		&core.TextField{Name: "prefix", Required: true},
 		&core.TextField{Name: "hash", Required: true},
@@ -157,7 +157,7 @@ func createConfignestCollections(app core.App) error {
 		&core.NumberField{Name: "rateLimit", OnlyInt: true},
 	)
 
-	events := newConfignestCollection("events", colEvents)
+	events := newConfigwireCollection("events", colEvents)
 	events.Fields.Add(
 		relation("env", colEnvironments, false),
 		relation("flag", colFlags, false),
@@ -171,7 +171,7 @@ func createConfignestCollections(app core.App) error {
 		&core.DateField{Name: "ts"},
 	)
 
-	experiments := newConfignestCollection("experiments", colExperiments)
+	experiments := newConfigwireCollection("experiments", colExperiments)
 	experiments.Fields.Add(
 		&core.TextField{Name: "name", Required: true, Presentable: true},
 		relation("flag", colFlags, false),

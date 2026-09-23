@@ -21,7 +21,7 @@
 // aggregate counts only, so no PII survives past the raw window.
 //
 // SCHEDULING: a 24h process-local ticker + an admin route. No PocketBase
-// cron/scheduler dependency is needed on purpose: ConfigNest ships as a
+// cron/scheduler dependency is needed on purpose: ConfigWire ships as a
 // single binary, and a ticker plus a manually-triggerable route is the
 // smallest correct scheduler for a daily retention job.
 package purge

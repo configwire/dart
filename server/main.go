@@ -20,7 +20,7 @@ import (
 	"configwire/stats"
 )
 
-// ConfigNest data-integrity hooks (todo 5).
+// ConfigWire data-integrity hooks (todo 5).
 // Flag key shape + per-project cap and releases immutability live in
 // code (not collection options) so they apply to every write path
 // (API, dashboard, server-side e.App saves).
@@ -60,7 +60,7 @@ func countProjectFlags(app core.App, project string) (int64, error) {
 	return n, nil
 }
 
-func registerConfignestHooks(app core.App) {
+func registerConfigwireHooks(app core.App) {
 	// Releases are immutable: rollback republishes the old snapshot
 	// as a NEW row (todo 8). Deny every update path.
 	releasesImmutable := errors.New("releases are immutable: publish a new release instead")
@@ -101,7 +101,7 @@ func registerConfignestHooks(app core.App) {
 	// so every write path is covered (API, dashboard, server-side saves;
 	// superusers bypass rules but hooks still fire) and pre-existing
 	// duplicate rows never break migration. O(n) scan over environments
-	// is fine at ConfigNest scale (tens of rows).
+	// is fine at ConfigWire scale (tens of rows).
 	checkEnvSlug := func(app core.App, rec *core.Record) error {
 		recs, err := app.FindAllRecords("environments")
 		if err != nil {
@@ -143,7 +143,7 @@ func main() {
 		Automigrate: true,
 	})
 
-	registerConfignestHooks(app)
+	registerConfigwireHooks(app)
 
 	ingest.EnableWAL(app)
 

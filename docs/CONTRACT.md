@@ -361,3 +361,47 @@ Raw `events` rows live 30 days, daily `event_daily` rollups keyed
 Rollup-before-delete runs in the same op (upsert then delete; a crash
 between them double-counts only the in-flight bucket on re-run, and a
 clean re-run converges to `deleted: 0`). Ref: `server/purge/purge.go:70-83,124-182`.
+
+## 11. ConfigWire wire v2 (breaking rebrand)
+
+Sections 1-10 above are the frozen v1 contract: their shapes, examples,
+and `X-ConfigNest-Key` / `CONFIGNEST_CORS_ORIGIN` spellings are
+byte-identical history and stay valid as a record of v1 clients. This
+section documents only what the ConfigWire rename changed.
+
+### What changed
+
+- SDK auth header is `X-ConfigWire-Key: <full opaque key>` on every SDK
+  path (fetch, ingest, stream). The old `X-ConfigNest-Key` header is
+  not read and answers `401 Missing or invalid SDK key.` by design —
+  no compat shim. Ref: `server/ingest/ingest.go:47` (`HeaderKey`).
+- CORS origin env is `CONFIGWIRE_CORS_ORIGIN` (single origin, default
+  `*`). The legacy `CONFIGNEST_CORS_ORIGIN` is still honored as a
+  fallback with a one-line server deprecation warning. Ref:
+  `server/fetch/fetch.go:87-95`. Preflight `Allow-Headers` advertises
+  `X-ConfigWire-Key, If-None-Match`. Ref: `:84`.
+- Admin key prefix is `cw-` (the first-8-chars prefix rule is
+  unchanged); `cn-`-prefixed keys are never issued and never match.
+  Admin localStorage keys are `cw_admin_*` (legacy `cn_admin_*` values
+  are migrated once, then deleted). Ref: `server/pb_public/app.js`.
+- Go module is `configwire`; Dart package is `config_wire`
+  (`class ConfigWire`, default cache `.config_wire_<env>-cache.json`).
+  Old import paths fail loudly (compiler/analyzer), never silently.
+- Display name is ConfigWire (admin UI, README, doc titles).
+
+### What did NOT change
+
+- ETag rule: `hex(sha256(version + ":" + snapshot))[:16]`, served
+  verbatim in the body and the `ETag` header; `304` on exact
+  `If-None-Match` match only (sections 1a/1c).
+- Snapshot schema, publish/rollback shapes, the section 8
+  status-code index, and the auth/env/attrs order on every path.
+- Stored collection ids (`cn_projects`, `cn_environments`, …) and
+  migration file names: byte-identical, so existing databases open
+  unchanged.
+
+### Rotation
+
+Reissue `cw-` keys, revoke the old rows, and prove the break with the
+old-header `401`: procedure in `docs/ROTATION.md` (same semantics as
+`docs/SECURITY.md` section 2).

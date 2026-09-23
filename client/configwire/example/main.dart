@@ -1,34 +1,31 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:configwire/configwire.dart';
-import 'package:hive_ce/hive_ce.dart';
 
 /// Defaults demo (cold path) + live-fetch demo (used by T12 live smoke).
 ///
-/// Bring-your-own-box: the host inits Hive, opens the box, and hands it
-/// to `HiveCacheStore`. On Flutter call `Hive.initFlutter()` instead of
-/// `Hive.init`; on Web skip init (IndexedDB) and just open the box.
+/// Caching is bring-your-own via the [CacheStore] seam. Omitting `store:`
+/// uses the default session-only [MemoryCacheStore] (no disk). For disk
+/// persistence, implement [CacheStore] yourself (example: [_JsonFileStore]
+/// below) and pass it as `store:`.
 ///
 /// Live mode (env vars; apiKey printed NEVER — values only):
 ///   CW_BASE_URL=http://127.0.0.1:8102 CW_API_KEY=`<sdk-key>` CW_ENV=dev \
-///     CW_HIVE_DIR=/tmp/cw-t12-smoke/hive dart run example/main.dart
+///     CW_LIVE=1 dart run example/main.dart
 Future<void> main() async {
   final baseUrl = Platform.environment['CW_BASE_URL'] ?? 'http://localhost:8090';
   final apiKey = Platform.environment['CW_API_KEY'] ?? 'demo-key';
   final env = Platform.environment['CW_ENV'] ?? 'dev';
-  final hiveDir = Platform.environment['CW_HIVE_DIR'] ?? '.configwire-hive';
   final live = Platform.environment['CW_LIVE'] == '1';
-
-  // Host-owned Hive: init + open, then hand the box to the store.
-  Hive.init(hiveDir);
-  final box = await Hive.openBox('configwire_cache');
 
   final cw = ConfigWire(
     apiKey: apiKey,
     env: env,
     baseUrl: baseUrl,
     defaults: {'welcome': 'hello', 'enabled': true, 'launch_flag': false},
-    store: HiveCacheStore(box: box, env: env),
+    // Omit `store:` for the default session-only memory cache.
+    // For disk persistence: `store: _JsonFileStore(env: env),`
     // Dev smoke: no throttle so repeated runs always hit the server.
     minimumFetchInterval: Duration.zero,
   );
@@ -47,4 +44,36 @@ Future<void> main() async {
     );
   }
   await cw.dispose();
+}
+
+/// Example disk-backed [CacheStore]: one JSON file per environment.
+///
+/// Pure `dart:io` + `dart:convert`, no extra dependencies. Load returns
+/// null on any miss/corruption (caller falls back to defaults); save
+/// overwrites the file.
+// ignore: unused_element
+class _JsonFileStore implements CacheStore {
+  _JsonFileStore({required this.env, String? dir})
+      : _file = File('${dir ?? '.configwire-cache'}/cache_$env.json');
+
+  final String env;
+  final File _file;
+
+  @override
+  Future<CacheData?> load() async {
+    try {
+      final raw = await _file.readAsString();
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      return CacheData.fromJson(Map<String, Object?>.from(decoded));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> save(CacheData data) async {
+    await _file.parent.create(recursive: true);
+    await _file.writeAsString(jsonEncode(data.toJson()));
+  }
 }

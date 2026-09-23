@@ -52,15 +52,15 @@ func init() {
 
 // Stable collection ids so relation fields can reference targets.
 const (
-	colProjects     = "cn_projects"
-	colEnvironments = "cn_environments"
-	colGroups       = "cn_groups"
-	colFlags        = "cn_flags"
-	colRules        = "cn_rules"
-	colReleases     = "cn_releases"
-	colSDKKeys      = "cn_sdk_keys"
-	colEvents       = "cn_events"
-	colExperiments  = "cn_experiments"
+	colProjects     = "cw_projects"
+	colEnvironments = "cw_environments"
+	colGroups       = "cw_groups"
+	colFlags        = "cw_flags"
+	colRules        = "cw_rules"
+	colReleases     = "cw_releases"
+	colSDKKeys      = "cw_sdk_keys"
+	colEvents       = "cw_events"
+	colExperiments  = "cw_experiments"
 )
 
 func denyAllRules(c *core.Collection) {

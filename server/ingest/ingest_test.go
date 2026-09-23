@@ -1,5 +1,3 @@
-// Unit tests for the ingest pure parts (hashing, validation, splitting,
-// rate limiting). No PocketBase app needed: `go test ./ingest/ -count=1`.
 package ingest
 
 import (
@@ -13,7 +11,6 @@ import (
 )
 
 func TestHashUserKnownVector(t *testing.T) {
-	// sha256("abc") = ba7816bf8f01cfea414140de5dae2223... → [:16].
 	sum := sha256.Sum256([]byte("abc"))
 	want := hex.EncodeToString(sum[:])[:16]
 	if got := HashUser("abc"); got != want {
@@ -207,7 +204,6 @@ func TestSplitBatch(t *testing.T) {
 	if got := SplitBatch([]int{}, 500); len(got) != 1 {
 		t.Fatalf("empty batch: %v", lens(got))
 	}
-	// Order preserved across the split.
 	joined := []int{}
 	for _, c := range SplitBatch(mk(1200), 500) {
 		joined = append(joined, c...)
@@ -241,7 +237,6 @@ func TestLimiterWindow(t *testing.T) {
 	if !l.Allow("k", 3) {
 		t.Fatal("new window must reset the count")
 	}
-	// Isolation across keys.
 	if !l.Allow("other", 3) {
 		t.Fatal("distinct keys must have independent windows")
 	}

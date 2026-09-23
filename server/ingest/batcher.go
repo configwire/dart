@@ -1,4 +1,3 @@
-// Async batched SQLite writer for the ingest path (plan todo 9).
 package ingest
 
 import (
@@ -58,7 +57,6 @@ func NewBatcher(app core.App) *Batcher {
 	return &Batcher{app: app, ch: make(chan StoredEvent, BatcherChannelCap), done: make(chan struct{})}
 }
 
-// Start launches the background flush goroutine.
 func (b *Batcher) Start() {
 	b.wg.Add(1)
 	go b.run()
@@ -102,8 +100,6 @@ func (b *Batcher) run() {
 		case <-ticker.C:
 			flush()
 		case <-b.done:
-			// Best-effort drain: take whatever is buffered without
-			// waiting for new arrivals, flush once, log, exit.
 			for {
 				select {
 				case ev := <-b.ch:
@@ -152,8 +148,7 @@ func (b *Batcher) flush(items []StoredEvent) {
 	}
 }
 
-// SplitBatch chunks items into slices of at most size (last may be short).
-// Used to bound flush work; size <= 0 returns items as a single chunk.
+// SplitBatch bounds flush work; size <= 0 returns items as a single chunk.
 func SplitBatch[T any](items []T, size int) [][]T {
 	if size <= 0 || len(items) <= size {
 		if items == nil {

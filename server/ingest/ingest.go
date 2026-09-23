@@ -41,9 +41,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// Tunables for the ingest path.
 const (
-	// HeaderKey carries the full SDK key.
 	HeaderKey = "X-ConfigWire-Key"
 	// MaxBatchEvents bounds a single request body; larger → 400.
 	MaxBatchEvents = 100
@@ -53,11 +51,9 @@ const (
 	MaxEventBytes = 64 << 10
 	// DefaultRateLimit applies when sdk_keys.rateLimit is missing/non-positive.
 	DefaultRateLimit = 60
-	// RateWindow is the fixed window for per-key rate limiting.
-	RateWindow = time.Minute
+	RateWindow       = time.Minute
 )
 
-// EventIn is one decoded event from the request body.
 type EventIn struct {
 	Kind     string
 	Flag     string
@@ -133,7 +129,6 @@ func jsonErrorPrefix(i int) string {
 	return "events[" + strconv.Itoa(i) + "]: "
 }
 
-// validateRawEvent validates one event object purely.
 func validateRawEvent(raw json.RawMessage) (EventIn, *apiError) {
 	var ev EventIn
 	if len(raw) > MaxEventBytes {

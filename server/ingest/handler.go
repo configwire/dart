@@ -1,5 +1,3 @@
-// HTTP wiring for the ingest path (plan todo 9): route handler, per-key
-// fixed-window rate limiter, module registration, and WAL bootstrap.
 package ingest
 
 import (
@@ -13,9 +11,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// Limiter is a per-key fixed-window rate limiter (window = RateWindow).
-// Map entries are {windowStart, count}; an entry whose window has elapsed is
-// reset on next use. MEMORY-GROWTH RISK (reported per contract): one entry
+// MEMORY-GROWTH RISK (reported per contract): one entry
 // per distinct key-hash ever seen; opportunistic sweeps (≤1/s) delete
 // entries idle for >2 windows, so steady-state size ≈ active keys, but a
 // key-scan attack could still grow the map — acceptable for the SDK-key
@@ -32,7 +28,6 @@ type rateWindow struct {
 	count int
 }
 
-// NewLimiter builds a Limiter with the production window.
 func NewLimiter() *Limiter {
 	return &Limiter{windows: make(map[string]*rateWindow), window: RateWindow}
 }
@@ -42,7 +37,6 @@ func newLimiterWithWindow(d time.Duration) *Limiter {
 	return &Limiter{windows: make(map[string]*rateWindow), window: d}
 }
 
-// Allow consumes one token for id against limit; false means over-limit.
 func (l *Limiter) Allow(id string, limit int) bool {
 	if limit <= 0 {
 		limit = DefaultRateLimit
@@ -67,21 +61,18 @@ func (l *Limiter) Allow(id string, limit int) bool {
 	return w.count <= limit
 }
 
-// Size reports entry count (observability for tests/QA only).
+// Observability for tests/QA only.
 func (l *Limiter) Size() int {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return len(l.windows)
 }
 
-// module holds the process singletons wired by Register.
 var module struct {
 	batcher *Batcher
 	limiter *Limiter
 }
 
-// Register mounts POST /api/v1/env/{env}/events, starts the background
-// batcher, and drains it on process termination (best-effort + log line).
 func Register(se *core.ServeEvent) {
 	module.batcher = NewBatcher(se.App)
 	module.limiter = NewLimiter()
@@ -93,9 +84,8 @@ func Register(se *core.ServeEvent) {
 	})
 }
 
-// EnableWAL switches SQLite to WAL mode at serve time (the store is not yet
-// open during OnBootstrap, so this binds OnServe). The mode is persistent in
-// the DB file; verify with `sqlite3 <dir>/data.db "pragma journal_mode;"` → wal.
+// The store is not yet open during OnBootstrap, so this binds OnServe.
+// The mode is persistent in the DB file; verify with `sqlite3 <dir>/data.db "pragma journal_mode;"` → wal.
 func EnableWAL(app core.App) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		if _, err := e.App.DB().NewQuery("PRAGMA journal_mode=WAL").Execute(); err != nil {
@@ -107,7 +97,6 @@ func EnableWAL(app core.App) {
 	})
 }
 
-// postEvents handles POST /api/v1/env/:env/events.
 // Order: 401 (key) → 404 (env) / 400 (ambiguous slug) / 401 (scope) →
 // 429 (rate) → 400/413 (body) → 202.
 // Uses re.App for every request-scoped lookup (never a captured app).

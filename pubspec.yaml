@@ -1,6 +1,15 @@
 name: configwire
 description: Pure-Dart ConfigWire client (fetch, cache, typed getters, realtime).
 version: 0.0.1
+homepage: https://github.com/configwire/dart
+repository: https://github.com/configwire/dart
+issue_tracker: https://github.com/configwire/dart/issues
+documentation: https://github.com/configwire/dart
+
+topics:
+  - remote-config
+  - feature-flags
+  - configuration
 
 environment:
   sdk: ">=3.12.0 <4.0.0"

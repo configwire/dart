@@ -1,20 +1,37 @@
 # configwire
 
-Pure-Dart ConfigWire client (fetch, cache, typed getters, realtime).
+Pure-Dart [ConfigWire](https://github.com/configwire/configwire) client
+(fetch, cache, typed getters, realtime).
 Works on Dart VM and Flutter from this single package — no Flutter
 facade needed. Requires Dart SDK `>=3.12.0`.
 
+Server wire details live in the server repo:
+`https://github.com/configwire/configwire/blob/main/docs/CONTRACT.md`.
+
 ## Install
 
-This package is not on pub.dev. Add it to your `pubspec.yaml` via a
-path (or git) reference, then run `dart pub get` (`flutter pub get`
-on Flutter):
+```bash
+dart pub add configwire
+```
+
+Or pin it in your `pubspec.yaml`:
+
+```yaml
+dependencies:
+  configwire: ^0.0.1
+```
+
+Git fallback (before/while pub.dev review is pending):
 
 ```yaml
 dependencies:
   configwire:
-    path: ../configwire # adjust to your checkout layout
+    git:
+      url: https://github.com/configwire/dart.git
+      ref: main
 ```
+
+Then `dart pub get` (`flutter pub get` on Flutter).
 
 ## Usage
 
@@ -65,8 +82,7 @@ await cw.dispose();
 Realtime: `cw.connectRealtime()` opens SSE plus a 15min poll fallback,
 so freshness is at most `pollInterval` plus one fetch on every path.
 
-See `example/main.dart` for a runnable demo. Wire details live in the
-repo `docs/CONTRACT.md`.
+See `example/main.dart` for a runnable demo.
 
 ## Cache
 
@@ -84,7 +100,10 @@ serving defaults plus server fetches and never throws. Web fetches
 need server CORS allowing the app origin.
 
 Run the browser smoke suite with
-`dart test -p chrome test/chrome_smoke_test.dart` (needs Chrome;
-`make test-chrome` wraps it, while `make test` stays VM-only). The
-smoke suite runs on the session-only memory store with a mock HTTP
+`dart test -p chrome test/chrome_smoke_test.dart` (needs Chrome).
+The smoke suite runs on the session-only memory store with a mock HTTP
 client, so no disk or backend setup is needed.
+
+## License
+
+MIT — Copyright (c) 2026 Lam Thanh Nhan. See [LICENSE](LICENSE).

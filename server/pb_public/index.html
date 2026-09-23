@@ -222,11 +222,11 @@
       <section class="card" aria-labelledby="stats">
         <div class="card-head"><h2 id="stats">Stats</h2></div>
         <form class="inline-form" onsubmit="return false" aria-label="Stats filters">
-          <label>Flag <input id="stats-flag" type="text" spellcheck="false" placeholder="flag key"></label>
-          <label>Since <input id="stats-since" type="text" value="7d" spellcheck="false"></label>
+          <label for="stats-flag">Flag <select id="stats-flag"><option value="">All flags</option></select></label>
+          <label for="stats-since">Since <select id="stats-since"><option value="7d" selected>7d</option><option value="30d">30d</option><option value="90d">90d</option></select></label>
           <button id="refresh-stats" type="button" class="btn secondary">Load stats</button>
         </form>
-        <div id="stats-view" aria-label="Stats">Not loaded.</div>
+        <div id="stats-view" aria-label="Stats" role="status" aria-live="polite">Not loaded.</div>
       </section>
       </div>
       <dialog id="json-editor-dialog" aria-labelledby="json-editor-title">

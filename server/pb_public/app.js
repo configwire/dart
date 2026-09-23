@@ -27,6 +27,9 @@
     rules: [],
     experiments: [],
     keys: [],
+    lastStats: null, // last successful stats payload (kept across errors)
+    lastStatsText: "", // JSON text of lastStats for copy-JSON
+    lastStatsError: "", // inline error line rendered under the numbers
   };
 
   function $(id) { return document.getElementById(id); }
@@ -201,6 +204,7 @@
       : '<tr><td colspan="5">No flags for this project.</td></tr>';
     renderFlagGroupSelect();
     renderFlagSelects();
+    renderStatsFlagOptions();
   }
 
   function renderFlagSelects() {
@@ -297,14 +301,133 @@
   }
 
   function renderStats(data) {
-    var split = Object.keys(data.perVariant || {}).map(function (v) {
-      return esc(v === "" ? "(empty)" : v) + ": " + esc(data.perVariant[v]);
+    // Percentages are display-only: counts are never recomputed from rates.
+    // Charts are display-only too: div widths + conic-gradient stops derived
+    // from perVariant/exposures shares, never recomputed counts.
+    state.lastStats = data;
+    try {
+      state.lastStatsText = JSON.stringify(data, null, 2);
+    } catch (e) { state.lastStatsText = String(data); }
+    var exposures = Number(data.exposures) || 0;
+    var perVariant = data.perVariant || {};
+    var keys = Object.keys(perVariant);
+    var palette = ["var(--accent)", "var(--ok)", "var(--warn)", "var(--danger)", "var(--muted)"];
+    var entries = keys.map(function (v, i) {
+      var label = v === "" ? "(empty)" : v;
+      var count = Number(perVariant[v]) || 0;
+      var pct = exposures > 0 ? (count / exposures * 100) : 0;
+      return { label: label, pct: pct, color: palette[i % palette.length] };
+    });
+    var split = keys.map(function (v) {
+      var label = v === "" ? "(empty)" : v;
+      var count = perVariant[v];
+      if (exposures > 0) {
+        var pct = (Number(count) / exposures * 100).toFixed(1);
+        return esc(label) + ": " + esc(count) + " (" + esc(pct) + "%)";
+      }
+      return esc(label) + ": " + esc(count);
     }).join(", ") || "(no exposures)";
-    $("stats-view").innerHTML =
-      "<p>version: <strong>" + esc(data.version) + "</strong></p>" +
-      "<p>fetches: <strong>" + esc(data.fetches) + "</strong></p>" +
-      "<p>exposures: <strong>" + esc(data.exposures) + "</strong></p>" +
-      "<p>split: " + split + "</p>";
+    var chart = "";
+    if (exposures > 0 && entries.length) {
+      var bars = entries.map(function (e) {
+        var pctText = e.pct.toFixed(1);
+        return '<div class="stats-bar-row"><span class="stats-bar-label">' + esc(e.label) +
+          '</span><span class="stats-bar-track" role="img" aria-label="' + esc(e.label) + " " + esc(pctText) + '%">' +
+          '<span class="stats-bar-fill" style="width: ' + pctText + '%; background: ' + e.color + ';"></span></span>' +
+          '<span class="stats-bar-pct">' + esc(pctText) + '%</span></div>';
+      }).join("");
+      var acc = 0;
+      var stops = entries.map(function (e) {
+        var s = acc;
+        acc += e.pct;
+        return e.color + " " + s.toFixed(1) + "% " + acc.toFixed(1) + "%";
+      }).join(", ");
+      var donutLabel = entries.map(function (e) { return e.label + " " + e.pct.toFixed(1) + "%"; }).join(", ");
+      chart = '<div class="stats-chart"><div class="stats-bars">' + bars + "</div>" +
+        '<div class="stats-donut" role="img" aria-label="Variant split: ' + esc(donutLabel) +
+        '" style="background: conic-gradient(' + stops + ');"></div></div>';
+    } else {
+      chart = '<div class="stats-chart is-empty"><p class="muted stats-empty">No exposures yet — chart appears after the first exposure.</p></div>';
+    }
+    var echo = data.echo || {};
+    var echoFlag = echo.flag !== undefined && echo.flag !== null && echo.flag !== "" ? echo.flag : "(all)";
+    var echoSince = echo.since || echo.horizon || "";
+    var echoHtml = "flag " + esc(echoFlag) + " · since " + esc(echoSince) +
+      " · cutoff " + esc(echo.cutoff || "");
+    // True empty (no exposures AND flag known): deliberate onboarding state —
+    // muted tiles + one guidance line, quiet echo, secondary copy. Unknown-flag
+    // zeros (flagFound:false) keep the legacy zero wall + prominent warning so
+    // the two states never look alike; populated markup below is byte-identical.
+    var isEmpty = exposures === 0 && data.flagFound !== false;
+    var html;
+    if (isEmpty) {
+      html =
+        '<div class="stats-tiles" role="group" aria-label="Current totals">' +
+        '<div class="stats-tile"><span class="stats-tile-num">' + esc(data.version) + '</span><span class="stats-tile-label">version</span></div>' +
+        '<div class="stats-tile"><span class="stats-tile-num">' + esc(data.fetches) + '</span><span class="stats-tile-label">fetches</span></div>' +
+        '<div class="stats-tile"><span class="stats-tile-num">' + esc(data.exposures) + '</span><span class="stats-tile-label">exposures</span></div>' +
+        "</div>" +
+        '<p class="stats-guide">No stats yet — publish a release, fetch via SDK, then post an exposure event.</p>' +
+        '<p class="muted stats-echo-quiet">' + echoHtml + "</p>";
+    } else {
+      html =
+        '<p class="stats-count">version: <strong>' + esc(data.version) + "</strong></p>" +
+        '<p class="stats-count">fetches: <strong>' + esc(data.fetches) + "</strong></p>" +
+        '<p class="stats-count">exposures: <strong>' + esc(data.exposures) + "</strong></p>" +
+        '<p class="stats-split">split: ' + split + "</p>" +
+        chart +
+        '<p class="muted">' + echoHtml + "</p>";
+    }
+    if (data.approximate) html += '<p class="muted">approximate</p>';
+    if (data.flagFound === false) {
+      html += "<p role=\"alert\">warning: unknown flag — showing zeros (flagFound:false).</p>";
+    }
+    html += '<p class="stats-copy-row' + (isEmpty ? " is-secondary" : "") + '"><button type="button" id="stats-copy" class="btn ghost">Copy JSON</button> ' +
+      '<span id="stats-copy-status" class="muted" role="status"></span></p>';
+    if (state.lastStatsError) html += "<p role=\"alert\">" + esc(state.lastStatsError) + "</p>";
+    $("stats-view").innerHTML = html;
+  }
+
+  function copyStatsJson() {
+    var status = $("stats-copy-status");
+    function say(msg) {
+      if (status) status.textContent = msg;
+      else toast(msg);
+    }
+    var text = state.lastStatsText || "";
+    if (!text) { say("nothing to copy yet"); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { say("copied"); },
+        function () { say("copy failed — select and copy manually"); });
+    } else {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); say("copied"); }
+      catch (e) { say("copy failed — select and copy manually"); }
+      document.body.removeChild(ta);
+    }
+  }
+
+  // Stats flag dropdown: populated from the already-loaded flags collection
+  // (same perPage=200 superuser read as loadFlags — no new endpoint).
+  function renderStatsFlagOptions() {
+    var sel = $("stats-flag");
+    if (!sel) return;
+    var cur = sel.value;
+    var keys = state.flags.map(function (f) { return f.key; })
+      .filter(function (k) { return !!k; }).sort();
+    var html = '<option value="">All flags</option>' + keys.map(function (k) {
+      return '<option value="' + esc(k) + '">' + esc(k) + "</option>";
+    }).join("");
+    // Keep a stale/unknown selection visible so its warning round-trips.
+    if (cur && keys.indexOf(cur) === -1) {
+      html += '<option value="' + esc(cur) + '" selected>' + esc(cur) + "</option>";
+    }
+    sel.innerHTML = html;
+    if (!cur) sel.value = "";
+    else if (keys.indexOf(cur) !== -1) sel.value = cur;
   }
 
   // ---- data loaders (real endpoints) ----
@@ -456,13 +579,28 @@
   }
 
   function loadStats() {
-    var flag = $("stats-flag").value.trim();
-    var since = ($("stats-since").value.trim() || "7d");
+    var flagEl = $("stats-flag");
+    var sinceEl = $("stats-since");
+    var flag = flagEl && flagEl.value != null ? String(flagEl.value) : "";
+    var sinceRaw = sinceEl && sinceEl.value != null ? String(sinceEl.value) : "";
+    var since = sinceRaw !== "" ? sinceRaw : "7d";
     var url = "/api/v1/admin/env/" + encodeURIComponent(envSlug()) + "/stats?since=" +
       encodeURIComponent(since);
     if (flag) url += "&flag=" + encodeURIComponent(flag);
     if (state.projectId) url += "&project=" + encodeURIComponent(state.projectId);
-    return api(url).then(renderStats);
+    if (!state.lastStats) $("stats-view").textContent = "Loading…";
+    state.lastStatsError = "";
+    return api(url).then(function (data) {
+      state.lastStatsError = "";
+      renderStats(data);
+      return data;
+    }, function (err) {
+      var msg = err && err.message ? String(err.message).split("\n")[0] : "stats load failed";
+      state.lastStatsError = msg;
+      if (state.lastStats) renderStats(state.lastStats);
+      else $("stats-view").innerHTML = "<p>Loading… failed.</p><p role=\"alert\">" + esc(msg) + "</p>";
+      throw err;
+    });
   }
 
   function publish(note, baseVersion) {
@@ -848,6 +986,7 @@
       loadRules().catch(function (e) { $("rule-list").innerHTML = "<li>" + esc(e.message) + "</li>"; });
       loadExperiments().catch(function (e) { $("experiment-list").innerHTML = "<li>" + esc(e.message) + "</li>"; });
       loadKeys().catch(function (e) { $("key-list").innerHTML = "<li>" + esc(e.message) + "</li>"; });
+      loadStats().catch(function () { /* inline in stats card */ });
     }).catch(function (e) { toast(e.message); });
   }
 
@@ -874,6 +1013,7 @@
         loadReleases().catch(function () {});
         loadExperiments().catch(function () {});
         loadKeys().catch(function () {});
+        loadStats().catch(function () {});
       });
     });
     on("env-select", "change", function () {
@@ -884,14 +1024,27 @@
       renderScopeHint();
       loadReleases().catch(function () {});
       loadKeys().catch(function () {});
+      loadStats().catch(function () {});
     });
+    on("stats-flag", "change", function () { loadStats().catch(function () {}); });
+    on("stats-since", "change", function () { loadStats().catch(function () {}); });
     on("refresh-flags", "click", function () { loadFlags().catch(function (e) { toast(e.message); }); });
     on("refresh-releases", "click", function () { loadReleases().catch(function (e) { toast(e.message); }); });
     on("refresh-rules", "click", function () { loadRules().catch(function (e) { toast(e.message); }); });
     on("refresh-experiments", "click", function () { loadExperiments().catch(function (e) { toast(e.message); }); });
     on("refresh-keys", "click", function () { loadKeys().catch(function (e) { toast(e.message); }); });
     on("refresh-stats", "click", function () {
-      loadStats().catch(function (e) { $("stats-view").textContent = e.message; });
+      loadStats().catch(function () { /* loadStats renders inline */ });
+    });
+    on("stats-view", "click", function (ev) {
+      var t = ev && ev.target ? ev.target : null;
+      var btn = null;
+      if (t) {
+        if (t.closest) btn = t.closest("#stats-copy");
+        else if (t.id === "stats-copy") btn = t;
+      }
+      if (!btn) return;
+      copyStatsJson();
     });
     on("group-filter", "change", renderFlags);
     on("rule-flag-select", "change", function () { loadRules().catch(function () {}); });
@@ -956,7 +1109,26 @@
         return;
       }
       var k = t && t.getAttribute && t.getAttribute("data-stats-flag");
-      if (k) { $("stats-flag").value = k; loadStats().catch(function () {}); return; }
+      if (k) {
+        var sflag = $("stats-flag");
+        if (sflag) {
+          var hasOpt = false;
+          for (var i = 0; i < sflag.options.length; i++) {
+            if (sflag.options[i].value === k) { hasOpt = true; break; }
+          }
+          if (!hasOpt) {
+            var opt = document.createElement("option");
+            opt.value = k;
+            opt.textContent = k;
+            sflag.appendChild(opt);
+          }
+          sflag.value = k;
+        }
+        loadStats().catch(function () {});
+        var card = $("stats") && $("stats").closest ? $("stats").closest("section") : null;
+        if (card && card.scrollIntoView) card.scrollIntoView();
+        return;
+      }
       var fid = t && t.getAttribute && t.getAttribute("data-edit-flag");
       if (fid) {
         for (var i = 0; i < state.flags.length; i++) {
@@ -1018,6 +1190,7 @@
   window.cnAdmin = {
     state: state, login: login, logout: logout,
     loadFlags: loadFlags, loadReleases: loadReleases, loadStats: loadStats,
+    renderStats: renderStats,
     loadProjects: loadProjects, loadEnvs: loadEnvs,
     loadRules: loadRules, loadExperiments: loadExperiments, loadKeys: loadKeys,
     saveFlag: saveFlag, createRule: createRule, createExperiment: createExperiment,

@@ -14,27 +14,6 @@
   var LS_PROJECT = "cw_admin_project";
   var LS_ENV = "cw_admin_env";
 
-  // Pre-rebrand keys: migrated once at load, then deleted (never both sets populated).
-  var LEGACY_LS_KEY = "cn_admin_token";
-  var LEGACY_LS_PROJECT = "cn_admin_project";
-  var LEGACY_LS_ENV = "cn_admin_env";
-
-  function migrateLegacyStorage() {
-    try {
-      var pairs = [
-        [LEGACY_LS_KEY, LS_KEY],
-        [LEGACY_LS_PROJECT, LS_PROJECT],
-        [LEGACY_LS_ENV, LS_ENV],
-      ];
-      for (var i = 0; i < pairs.length; i++) {
-        var legacy = localStorage.getItem(pairs[i][0]);
-        if (legacy == null) continue;
-        if (localStorage.getItem(pairs[i][1]) == null) localStorage.setItem(pairs[i][1], legacy);
-        localStorage.removeItem(pairs[i][0]);
-      }
-    } catch (e) { /* private mode */ }
-  }
-
   var state = {
     token: null, // memory-first copy
     projects: [],
@@ -1015,8 +994,6 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     // Restore session (localStorage copy; memory-first once loaded).
-    // Migrate BEFORE session restore reads (legacy keys -> new keys, then legacy deleted).
-    migrateLegacyStorage();
     try { state.token = localStorage.getItem(LS_KEY); } catch (e) { state.token = null; }
     loadPersistedScope();
     if (state.token) { setLoggedIn(true); refreshAll(); }

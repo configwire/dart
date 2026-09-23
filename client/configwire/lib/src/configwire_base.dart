@@ -284,9 +284,7 @@ class ConfigWire {
             variants: Map<String, String>.from(_variants),
           ),
         );
-      } catch (_) {
-        // Swallowed: fetch already succeeded.
-      }
+      } catch (_) {}
       await postFetchEvent(
         client: client,
         baseUrl: baseUrl,

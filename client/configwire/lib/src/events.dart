@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:http/http.dart' as http;
 
-/// Best-effort fetch-event POST helper (todo 12).
+/// Best-effort fetch-event POST helper.
 ///
 /// After a successful 200 fetch the SDK reports one analytics event:
 ///

@@ -328,9 +328,7 @@ class RealtimeUpdater {
       if (identical(_streamSub, sub)) _streamSub = null;
       try {
         sub.cancel();
-      } catch (_) {
-        // Ignore cancel errors.
-      }
+      } catch (_) {}
     });
   }
 
@@ -358,7 +356,7 @@ class RealtimeUpdater {
       // ':' comments/keepalives are ignored (never throw).
       if (line.startsWith(':')) continue;
       final idx = line.indexOf(':');
-      if (idx < 0) continue; // garbage line: ignore.
+      if (idx < 0) continue;
       final field = line.substring(0, idx).trim();
       var value = line.substring(idx + 1);
       if (value.startsWith(' ')) value = value.substring(1);

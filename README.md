@@ -5,8 +5,8 @@
 Single-binary remote config: publish immutable releases, evaluate flags
 per SDK fetch, ingest fetch/exposure events, query stats, stream updates
 over SSE, purge old events on a retention schedule. Admin UI ships as
-static files; Dart client is pure-Dart (no Flutter) and works on Flutter
-via bring-your-own-box Hive.
+static files; Dart client is pure-Dart (no Flutter) and works on Flutter;
+persistence is bring-your-own CacheStore.
 
 Wire details live in `docs/CONTRACT.md`. Operator security notes live in
 `docs/SECURITY.md`.
@@ -15,7 +15,7 @@ Wire details live in `docs/CONTRACT.md`. Operator security notes live in
 
 - Go (version floor per `server/go.mod`)
 - Dart SDK `>=3.12.0` (pure-Dart client in `client/configwire`,
-  Flutter-compatible via bring-your-own-box Hive)
+  Flutter-compatible; persistence is bring-your-own CacheStore)
 - `make`, `bash`, `curl`, `python3`
 
 ## Serving (cwd rule)
@@ -83,24 +83,19 @@ answers `304` empty.
 
 ```dart
 import 'package:configwire/configwire.dart';
-import 'package:hive_ce/hive_ce.dart';
-
-// Host-owned Hive: Dart VM `Hive.init(path)`; Flutter
-// `await Hive.initFlutter()`; Web: no init (IndexedDB).
-final box = await Hive.openBox('configwire_cache');
 
 final cw = ConfigWire(
   apiKey: 'YOUR_SDK_KEY', // sent as X-ConfigWire-Key, never printed
   env: 'dev',
   baseUrl: 'http://127.0.0.1:8090',
   defaults: {'launch_flag': false},
-  // Omit `store:` for a session-only in-memory cache.
-  store: HiveCacheStore(box: box, env: 'dev'),
+  // Omit store: for session-only memory cache, or pass your own
+  // CacheStore for disk.
 );
 await cw.ensureInitialized();
 await cw.fetchAndActivate();
 final on = cw.getBool('launch_flag');
-await cw.dispose(); // never closes the box; host owns Hive.close()
+await cw.dispose();
 ```
 
 Realtime: `cw.connectRealtime()` opens SSE plus a 15min poll fallback,

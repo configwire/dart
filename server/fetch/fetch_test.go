@@ -1,6 +1,3 @@
-// Unit tests for the fetch pure parts (context building, etag compare,
-// snapshot evaluation shaping). No PocketBase app needed:
-// `go test ./fetch/ -count=1`.
 package fetch
 
 import (
@@ -99,9 +96,6 @@ func TestEtagMatches(t *testing.T) {
 	}
 }
 
-// fakeSnapshot builds a latest-release-shaped input without a server:
-// one string flag with a platform rule + one bool flag under a running
-// 50/50 experiment.
 func fakeSnapshot() releases.Snapshot {
 	return releases.Snapshot{
 		Flags: []releases.SnapshotFlag{
@@ -198,8 +192,6 @@ func TestAllowHeadersIsConfigWire(t *testing.T) {
 	}
 }
 
-// TestCorsOriginSingleRead covers the CORS behavior:
-// only CONFIGWIRE_CORS_ORIGIN is read, else "*".
 func TestCorsOriginSingleRead(t *testing.T) {
 	t.Setenv("CONFIGWIRE_CORS_ORIGIN", "https://app.example.com")
 	if got := corsOrigin(); got != "https://app.example.com" {

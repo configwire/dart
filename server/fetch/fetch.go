@@ -76,12 +76,8 @@ const MaxAttrsBytes = 8192
 // emptyReleaseEtag is served when an env has no release row yet.
 const emptyReleaseEtag = "none"
 
-// allowHeaders lists the request headers the fetch preflight permits:
-// the ConfigWire SDK key header plus conditional-refresh.
 const allowHeaders = "X-ConfigWire-Key, If-None-Match"
 
-// corsOrigin returns the allowed origin for fetch responses: the
-// CONFIGWIRE_CORS_ORIGIN env value when set, else "*" (dev default).
 func corsOrigin() string {
 	if v := os.Getenv("CONFIGWIRE_CORS_ORIGIN"); v != "" {
 		return v
@@ -89,7 +85,6 @@ func corsOrigin() string {
 	return "*"
 }
 
-// Register mounts the SDK fetch route plus its CORS preflight route.
 func Register(se *core.ServeEvent) {
 	se.Router.GET("/api/v1/env/{env}/config", getConfig).Bind(apis.Gzip())
 	se.Router.OPTIONS("/api/v1/env/{env}/config", optionsConfig)
@@ -206,8 +201,6 @@ func decodeRule(sr releases.SnapshotRule, i int) eval.Rule {
 	return r
 }
 
-// expsForFlag returns the snapshot experiments targeting a flag key, in
-// snapshot order.
 func expsForFlag(all []releases.SnapshotExperiment, key string) []releases.SnapshotExperiment {
 	var out []releases.SnapshotExperiment
 	for _, e := range all {
@@ -282,7 +275,6 @@ func latestRelease(app core.App, envID string) (*core.Record, error) {
 	return best, nil
 }
 
-// setCORS stamps the fetch CORS header on a response.
 func setCORS(re *core.RequestEvent) {
 	re.Response.Header().Set("Access-Control-Allow-Origin", corsOrigin())
 }

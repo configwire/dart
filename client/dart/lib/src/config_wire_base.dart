@@ -172,9 +172,13 @@ class ConfigWire {
 
   http.Client get _http => _client ?? (_owned ??= http.Client());
 
-  /// Loads the cache file into memory, then runs [fetchAndActivate].
+  /// Loads the cache file into memory, then runs [fetchAndActivate]
+  /// with `force: true` so the server refresh is never throttled by
+  /// [minimumFetchInterval] (a fresh cache arms the throttle via
+  /// [_applyServerValues]).
   /// Never throws: a missing/corrupt cache means defaults until the
-  /// fetch resolves (which itself never throws).
+  /// fetch resolves (which itself never throws); a failed fetch keeps
+  /// the cached values (or defaults on a cold cache).
   Future<void> ensureInitialized({String? userId}) async {
     final cached = await loadCacheFile(cacheFile);
     if (cached != null) {
@@ -183,10 +187,10 @@ class ConfigWire {
         etag: cached.etag,
         version: cached.version,
         fetchedAt: cached.fetchedAt,
-        variants: const {},
+        variants: cached.variants,
       );
     }
-    await fetchAndActivate(userId: userId);
+    await fetchAndActivate(userId: userId, force: true);
   }
 
   /// Fetches the latest release and activates it.
@@ -195,6 +199,12 @@ class ConfigWire {
   /// throttled skips, and every failure mode return false — network or
   /// parse failure keeps the stale cache, a cold cache keeps in-app
   /// defaults, and nothing here ever throws.
+  ///
+  /// Latency note: on a successful fetch this awaits one best-effort
+  /// analytics POST (`postFetchEvent`, up to 5s timeout) before
+  /// returning. The POST is intentionally awaited (not fire-and-forget)
+  /// so callers/tests observe the event body; failures are swallowed
+  /// and never fail the fetch.
   ///
   /// [force] skips the [minimumFetchInterval] throttle check. The
   /// realtime path ([connectRealtime]) always passes `force: true` so
@@ -214,7 +224,7 @@ class ConfigWire {
     final client = _http;
     try {
       final uri = Uri.parse(
-        '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/env/$env/config${uid.isEmpty ? '' : '?uid=${Uri.encodeComponent(uid)}'}',
+        '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/env/${Uri.encodeComponent(env)}/config${uid.isEmpty ? '' : '?uid=${Uri.encodeComponent(uid)}'}',
       );
       final headers = <String, String>{'X-ConfigWire-Key': apiKey};
       if (_etag != null && _etag!.isNotEmpty) {
@@ -261,6 +271,7 @@ class ConfigWire {
             version: _version,
             fetchedAt: at,
             values: parsed.values,
+            variants: Map<String, String>.from(_variants),
           ),
         );
       } catch (_) {

@@ -96,9 +96,9 @@ void main() {
       expect(client.etag, equals('abc123'));
       expect(client.version, equals(1));
 
-      // Cache file on disk contains all four keys.
+      // Cache file on disk contains all five keys (incl. variants).
       final onDisk = jsonDecode(await File(cachePath).readAsString()) as Map;
-      expect(onDisk.keys.toSet(), equals({'etag', 'version', 'fetchedAt', 'values'}));
+      expect(onDisk.keys.toSet(), equals({'etag', 'version', 'fetchedAt', 'values', 'variants'}));
       expect(onDisk['etag'], equals('abc123'));
       expect(onDisk['version'], equals(1));
       expect((onDisk['values'] as Map)['flag_bool'], isFalse);

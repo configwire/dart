@@ -23,18 +23,21 @@ class CacheData {
     required this.version,
     required this.fetchedAt,
     required this.values,
-  });
+    Map<String, String>? variants,
+  }) : variants = variants ?? {};
 
   final String etag;
   final int version;
   final DateTime fetchedAt;
   final Map<String, Object?> values;
+  final Map<String, String> variants;
 
   Map<String, Object?> toJson() => {
         'etag': etag,
         'version': version,
         'fetchedAt': fetchedAt.toUtc().toIso8601String(),
         'values': values,
+        'variants': variants,
       };
 
   /// Returns null when [json] is not a well-formed cache document.
@@ -52,11 +55,22 @@ class CacheData {
     } else {
       at = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
     }
+    // Tolerant parsing: old cache files without `variants` default to {}.
+    final variants = <String, String>{};
+    final rawVariants = json['variants'];
+    if (rawVariants is Map) {
+      for (final e in rawVariants.entries) {
+        if (e.key is String && e.value is String) {
+          variants[e.key as String] = e.value as String;
+        }
+      }
+    }
     return CacheData(
       etag: etag,
       version: v,
       fetchedAt: at,
       values: Map<String, Object?>.from(values),
+      variants: variants,
     );
   }
 }

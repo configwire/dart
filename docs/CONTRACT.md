@@ -364,22 +364,10 @@ clean re-run converges to `deleted: 0`). Ref: `server/purge/purge.go:70-83,124-1
 
 ## History
 
-Pre-rebrand (v1, ConfigNest) spellings are dead. The old SDK header
-`X-ConfigNest-Key` is not read and answers
-`401 Missing or invalid SDK key.` by design — no compat shim. The old
-env var `CONFIGNEST_CORS_ORIGIN` is ignored (set
-`CONFIGWIRE_CORS_ORIGIN`). `cn-`-prefixed keys are never issued and
-never match (the first-8-chars prefix rule is unchanged). Stored
-collection ids are `cw_*` now (migrated from `cn_*` with identical
-values; migration filenames are unchanged, so existing databases open
-unchanged). Current names: Go module `configwire`, Dart package
-`config_wire` (`class ConfigWire`, default cache
-`.config_wire_<env>-cache.json`); the old `confignest` / `config_nest` /
-`ConfigNest` import paths fail loudly (compiler/analyzer), never
-silently. Admin session keys are `cw_admin_*` with no legacy fallback.
-Stale `.config_nest_*-cache.json` Dart cache files are never read again
-(delete them or leave them; the cache rebuilds on the next fetch).
-
-Rotation procedure (reissue `cw-` keys, revoke the old rows, prove the
-break with the old-header `401`) lives in `docs/ROTATION.md` (same
-semantics as `docs/SECURITY.md` section 2).
+Current names: Go module `configwire`, Dart package `config_wire`
+(`class ConfigWire`, default cache `.config_wire_<env>-cache.json`);
+SDK header `X-ConfigWire-Key`, env `CONFIGWIRE_CORS_ORIGIN`,
+collection ids `cw_*`, admin keys `cw_admin_*`. Keys carry the `cw-`
+prefix (first-8-chars prefix rule). Rotation procedure (reissue `cw-`
+keys, revoke the old rows, prove the break with a `401`) lives in
+`docs/ROTATION.md` (same semantics as `docs/SECURITY.md` section 2).

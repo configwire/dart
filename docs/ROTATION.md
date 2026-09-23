@@ -1,9 +1,8 @@
 # ConfigWire Key Rotation Runbook (breaking `cw-` reissue)
 
-Why this exists: the rebrand renamed the SDK header to
-`X-ConfigWire-Key` (`server/ingest/ingest.go:47`) and new keys carry the
-`cw-` prefix. There is no compat shim: the old header answers `401` by
-design, and old-prefix rows keep working only until you revoke them.
+Why this exists: the SDK header is `X-ConfigWire-Key`
+(`server/ingest/ingest.go:47`) and keys carry the `cw-` prefix.
+Unknown, revoked, or env-mismatched keys answer `401` by design.
 Rotate with the steps below.
 
 Key facts (landed code, todos 5-7):
@@ -16,8 +15,8 @@ Key facts (landed code, todos 5-7):
   `Missing or invalid SDK key.` on fetch, ingest, and stream.
 - Admin session keys are `cw_admin_*` localStorage (memory-first copy;
   logout clears both).
-- Orphaned old Dart `.config_nest_*-cache.json` files are harmless; the
-  cache rebuilds on the next fetch (schema unchanged).
+- Stale Dart `.config_wire_*-cache.json` files rebuild on the next
+  fetch (schema unchanged).
 
 ## Procedure (scratch-port script, copy-paste verbatim)
 
@@ -86,17 +85,17 @@ Expected body shape plus `new:200`:
 (`etag` is the release etag and `fetchAt` is now; both vary per run.
 The proof run returned `etag ca8b8ecbb4742977` on its seed data.)
 
-### 3. Prove the old header is dead (401)
+### 3. Prove an unknown key is rejected (401)
 
 ```bash
-curl -s -w "\nold:%{http_code}\n" "$BASE/api/v1/env/rotate/config?uid=rotate-u1" -H "X-ConfigNest-Key: $NEW_KEY"
+curl -s -w "\nunknown:%{http_code}\n" "$BASE/api/v1/env/rotate/config?uid=rotate-u1" -H "X-ConfigWire-Key: cw-unknown-dead-key-00"
 ```
 
 Expected, byte-exact:
 
 ```json
 {"data":{},"message":"Missing or invalid SDK key.","status":401}
-old:401
+unknown:401
 ```
 
 Same `401` body answers unknown keys, revoked keys, and env-mismatched
@@ -134,10 +133,10 @@ Receipt: `curl $BASE/hello` refuses and `lsof -ti:8120` is empty.
 
 ## Client notes
 
-- Dart (`config_wire` package, `ConfigWire` class): update the import
-  to `package:config_wire/config_wire.dart`; the client already sends
-  `X-ConfigWire-Key`. Delete stale `.config_nest_*-cache.json` files or
-  leave them; they are never read again.
+- Dart (`config_wire` package, `ConfigWire` class): import
+  `package:config_wire/config_wire.dart`; the client sends
+  `X-ConfigWire-Key`. Stale `.config_wire_*-cache.json` files rebuild
+  on the next fetch.
 - Admin UI: first load restores the stored session from localStorage.
   An empty or missing token lands on the
   login form; a garbage token shows an error toast and stays in the

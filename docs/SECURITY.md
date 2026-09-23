@@ -80,9 +80,7 @@ binary plus operator procedure.
 - Fetch responses (including `304`) send
   `Access-Control-Allow-Origin`, default **`*`** (Flutter/web dev).
 - Production: set `CONFIGWIRE_CORS_ORIGIN=https://app.example.com`
-  (single origin, plain header, no infra). The legacy
-  `CONFIGNEST_CORS_ORIGIN` is ignored (breaking rebrand: set the new
-  var). `OPTIONS` preflight →
+  (single origin, plain header, no infra). `OPTIONS` preflight →
   `204` with `Allow-Methods/Headers` + 86400s max-age.
 
 ## 6. Admin — superuser-only
@@ -124,6 +122,6 @@ binary plus operator procedure.
 - Ingest lag spot: 100-batch → countable in **636ms** (≤2s bound).
 - Post-load matrix: publish `200` (v2), fetch `304`, stats `200`.
 - Post-burst 30s at 100rps: 3001×`200`, 0×`429`, 0×`500` (no stuck state).
-- Full JSON-parsed evidence: `.omo/evidence/task-16-confignest.log`.
+- Full JSON-parsed evidence: `.omo/evidence/task-16-configwire.log`.
 - Runner: **k6** (`k6 --version` → v2.3.0; installed via brew for the
   gate). No `hey` fallback shipped — k6 was present.

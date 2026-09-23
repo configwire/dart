@@ -35,11 +35,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// Retention bounds in days.
 const (
-	// RawRetentionDays is how long raw events rows live.
-	RawRetentionDays = 30
-	// RollupRetentionDays is how long event_daily aggregate rows live.
+	RawRetentionDays    = 30
 	RollupRetentionDays = 90
 	// rollupExtraDays derives the event_daily cutoff from the raw-events
 	// cutoff passed to PurgeOlderThan: 90d - 30d = 60d further back.
@@ -56,7 +53,6 @@ type EventRow struct {
 	Ts      time.Time
 }
 
-// Rollup is one (day, env, flag, variant) aggregate bucket.
 type Rollup struct {
 	Day       time.Time // UTC midnight of the event day
 	EnvID     string
@@ -280,7 +276,6 @@ func Register(se *core.ServeEvent) {
 	go dailyTicker(se.App)
 }
 
-// dailyTicker fires PurgeOlderThan every 24h with cutoff = now-30d.
 func dailyTicker(app core.App) {
 	t := time.NewTicker(24 * time.Hour)
 	defer t.Stop()

@@ -48,11 +48,11 @@ func TestBuildRollupsMath(t *testing.T) {
 		{EnvID: "e1", FlagID: "f1", Kind: "exposure", Variant: "control", Ts: dayA},
 		{EnvID: "e1", FlagID: "f1", Kind: "exposure", Variant: "control", Ts: dayA.Add(2 * time.Hour)},
 		{EnvID: "e1", FlagID: "f1", Kind: "exposure", Variant: "treatment", Ts: dayA},
-		{EnvID: "e1", FlagID: "f1", Kind: "fetch", Ts: dayB},                      // other day
-		{EnvID: "e2", FlagID: "f1", Kind: "fetch", Ts: dayA},                      // other env
-		{EnvID: "e1", FlagID: "", Kind: "exposure", Variant: "control", Ts: dayA}, // unset flag
-		{EnvID: "e1", FlagID: "f1", Kind: "weird", Variant: "control", Ts: dayA},  // unknown kind ignored
-		{EnvID: "e1", FlagID: "f1", Kind: "exposure", Variant: "control"},         // zero ts skipped
+		{EnvID: "e1", FlagID: "f1", Kind: "fetch", Ts: dayB},
+		{EnvID: "e2", FlagID: "f1", Kind: "fetch", Ts: dayA},
+		{EnvID: "e1", FlagID: "", Kind: "exposure", Variant: "control", Ts: dayA},
+		{EnvID: "e1", FlagID: "f1", Kind: "weird", Variant: "control", Ts: dayA}, // unknown kind ignored
+		{EnvID: "e1", FlagID: "f1", Kind: "exposure", Variant: "control"},        // zero ts skipped
 	}
 	got := BuildRollups(rows)
 	byKey := map[string]Rollup{}

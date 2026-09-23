@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:configwire/configwire.dart';
-import 'package:hive_ce/hive_ce.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
@@ -12,7 +11,7 @@ import 'package:test/test.dart';
 /// Core wiring suite (todo 2): ConfigWire accepts a CacheStore.
 ///
 /// FakeStore is in-memory; adversarial probes: explicit store bypasses
-/// the Hive default with zero box/dir touch, throwing saves still
+/// the memory default with zero disk touch, throwing saves still
 /// succeed, pre-seeded store arms the throttle, throwing loads behave
 /// as cold defaults with the fetch still attempted and never throwing.
 class FakeStore implements CacheStore {
@@ -65,7 +64,7 @@ void main() {
 
   group('ConfigWire CacheStore wiring', () {
     test(
-        '(a) explicit store bypasses the memory default: no Hive touched',
+        '(a) explicit store bypasses the memory default: no disk touched',
         () async {
       final store = FakeStore();
       final client = ConfigWire(
@@ -83,10 +82,10 @@ void main() {
       expect(client.getBool('flag_bool'), isTrue);
       expect(store.loads, greaterThanOrEqualTo(1));
       expect(store.saves, equals(1));
-      // The memory default holds no Hive handle: no box opened implicitly.
-      // (Order-dependent: this test runs before any Hive-touching test
-      // in this file, so an open box would be this test's fault.)
-      expect(Hive.isBoxOpen('configwire_cache'), isFalse);
+      // The memory default holds no disk handle: the explicit store saw
+      // exactly one load-then-save round trip with the fetched row.
+      expect(store.saved, isNotNull);
+      expect(store.saved!.etag, equals('abc123'));
     });
 
     test('(b) throwing-save store still yields success with values on',
@@ -208,9 +207,9 @@ void main() {
       expect(client.getString('k'), equals('stale-value'));
     });
 
-    test('default ctor uses the memory default: no Hive touched', () async {
-      // The bare default is session-only: it fetches fine but never
-      // opens a Hive box or writes a Hive dir.
+    test('default ctor uses the memory default: fetch succeeds', () async {
+      // The bare default is session-only: it fetches fine with an
+      // in-memory store and keeps serving values.
       final client = ConfigWire(
         apiKey: 'test-key',
         env: 'dev',
@@ -221,7 +220,21 @@ void main() {
       addTearDown(client.dispose);
       expect(await client.fetchAndActivate(), isTrue);
       expect(client.lastFetchStatus, equals(FetchStatus.success));
-      expect(Hive.isBoxOpen('configwire_cache'), isFalse);
+      expect(client.getBool('flag_bool'), isTrue);
+      // A MemoryCacheStore-backed client persists within the session:
+      // a second fetch round-trips through the store without a throw.
+      final memStore = MemoryCacheStore();
+      final memClient = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: okClient(),
+        minimumFetchInterval: Duration.zero,
+        store: memStore,
+      );
+      addTearDown(memClient.dispose);
+      expect(await memClient.fetchAndActivate(), isTrue);
+      expect(await memStore.load(), isNotNull);
     });
   });
 }

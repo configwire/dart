@@ -5,8 +5,8 @@ import 'package:test/test.dart';
 
 /// CacheData model suite: parsing, tolerance, and round-trip.
 ///
-/// (A file-backed store group lived here until that backend was
-/// removed; Hive persistence is covered in `hive_store_test.dart`.)
+/// Persistence lives behind the CacheStore seam; implement your own
+/// store for disk.
 void main() {
   CacheData sample() => CacheData(
         etag: 'etag-abc',

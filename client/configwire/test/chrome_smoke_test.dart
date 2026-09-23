@@ -1,14 +1,13 @@
-// Core Web smoke: Hive IndexedDB round-trip on pure-Dart Web.
+// Core Web smoke: in-memory store round-trip on pure-Dart Web.
 //
 // Web-safe by construction: zero `dart:io` here AND transitively —
-// plain `Hive.openBox` (no init on Web) for storage, MockClient only
+// MemoryCacheStore only for storage, MockClient only
 // for HTTP (no `dart:io` HttpServer; it cannot compile to JS).
 // Run with: dart test -p chrome test/chrome_smoke_test.dart
 // (VM runs skip these tests; `dart test` stays hermetic.)
 import 'dart:convert';
 
 import 'package:configwire/configwire.dart';
-import 'package:hive_ce/hive_ce.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
@@ -17,6 +16,16 @@ import 'package:test/test.dart';
 /// on the VM. `package:flutter/foundation`'s `kIsWeb` is unavailable in
 /// pure Dart, so this local equivalent gates the Web-only tests.
 bool get _isWeb => identical(0, 0.0);
+
+/// Store double that simulates unavailable storage: every op throws,
+/// which the client swallows to load-null/save-noop.
+class _ThrowingStore implements CacheStore {
+  @override
+  Future<CacheData?> load() async => throw StateError('storage unavailable');
+
+  @override
+  Future<void> save(CacheData data) async => throw StateError('storage unavailable');
+}
 
 String _webFetch200() => jsonEncode({
       'version': 3,
@@ -31,19 +40,7 @@ String _webFetch200() => jsonEncode({
     });
 
 void main() {
-  tearDownAll(() async {
-    // Close only our own temp test boxes; never Hive.close() anything
-    // else, and no deleteBoxFromDisk anywhere.
-    for (final name in ['cw_core_smoke', 'cw_core_smoke_down']) {
-      try {
-        if (Hive.isBoxOpen(name)) await Hive.box(name).close();
-      } catch (_) {
-        // Best-effort test cleanup; never throws the suite.
-      }
-    }
-  });
-
-  test('IndexedDB box round-trip survives reload offline',
+  test('memory store round-trip survives reload offline',
       skip: !_isWeb, () async {
     final live = MockClient((req) async {
       if (req.method == 'POST') {
@@ -53,8 +50,8 @@ void main() {
     });
     addTearDown(live.close);
 
-    // Cold start over a host-opened IndexedDB box (no init on Web).
-    final box = await Hive.openBox('cw_core_smoke');
+    // Cold start over a shared in-memory store.
+    final store = MemoryCacheStore();
     final first = ConfigWire(
       apiKey: 'web-key',
       env: 'dev',
@@ -62,7 +59,7 @@ void main() {
       defaults: const {'launch_flag': false},
       minimumFetchInterval: Duration.zero,
       client: live,
-      store: HiveCacheStore(box: box, env: 'dev'),
+      store: store,
     );
     // NOTE: `completes` (future passed directly), NOT
     // `expectLater(() => ..., returnsNormally)`: on chrome the closure
@@ -76,10 +73,9 @@ void main() {
     expect(first.version, 3);
     expect(first.lastFetchStatus, FetchStatus.success);
 
-    // Simulated reload: dispose the client WITHOUT closing the box,
-    // then reopen through the same box with a dead transport.
+    // Simulated reload: dispose the client but keep the shared store,
+    // then re-read through the same store with a dead transport.
     await expectLater(first.dispose(), completes);
-    expect(Hive.isBoxOpen('cw_core_smoke'), isTrue);
 
     final dead = MockClient(
       (_) async => throw http.ClientException('offline-reload'),
@@ -92,7 +88,7 @@ void main() {
       defaults: const {'launch_flag': false},
       minimumFetchInterval: Duration.zero,
       client: dead,
-      store: HiveCacheStore(box: box, env: 'dev'),
+      store: store,
     );
     addTearDown(second.dispose);
 
@@ -105,7 +101,7 @@ void main() {
     expect(second.lastFetchStatus, FetchStatus.error);
   });
 
-  test('memory default fetches without Hive, no throw',
+  test('memory default fetches without storage setup, no throw',
       skip: !_isWeb, () async {
     final live = MockClient((req) async {
       if (req.method == 'POST') {
@@ -129,15 +125,13 @@ void main() {
     expect(client.lastFetchStatus, FetchStatus.success);
   });
 
-  test('IndexedDB unavailable degrades to defaults with error, no throw',
+  test('unavailable store degrades to defaults with error, no throw',
       skip: !_isWeb, () async {
-    // Failure QA: a closed box simulates blocked/unavailable IndexedDB
-    // (every get/put throws inside the store, swallowed to null/noop).
-    final box = await Hive.openBox('cw_core_smoke_down');
-    await box.close();
-
+    // Failure QA: a throwing store simulates blocked/unavailable
+    // storage (every load/save throws inside the store, swallowed to
+    // null/noop).
     final dead = MockClient(
-      (_) async => throw http.ClientException('indexeddb-blocked'),
+      (_) async => throw http.ClientException('storage-blocked'),
     );
     addTearDown(dead.close);
     final facade = ConfigWire(
@@ -147,7 +141,7 @@ void main() {
       defaults: const {'launch_flag': false, 'welcome': 'fallback'},
       minimumFetchInterval: Duration.zero,
       client: dead,
-      store: HiveCacheStore(box: box, env: 'dev'),
+      store: _ThrowingStore(),
     );
     addTearDown(facade.dispose);
 

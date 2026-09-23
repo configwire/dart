@@ -19,14 +19,11 @@ import (
 	m "github.com/pocketbase/pocketbase/migrations"
 )
 
-// Stable collection id for the daily rollup table.
 const colEventDaily = "cw_event_daily"
 
 func init() {
 	m.Register(func(app core.App) error {
 		daily := core.NewBaseCollection("event_daily", colEventDaily)
-		// Nil-deny (T5 idiom): a nil rule denies non-superusers with
-		// 403, while "" would leave the endpoint PUBLIC.
 		daily.ListRule = nil
 		daily.ViewRule = nil
 		daily.CreateRule = nil
@@ -52,7 +49,6 @@ func init() {
 		)
 		return app.Save(daily)
 	}, func(app core.App) error {
-		// Down drops event_daily ONLY (idempotent skip when absent).
 		collection, err := app.FindCollectionByNameOrId("event_daily")
 		if err != nil {
 			return nil

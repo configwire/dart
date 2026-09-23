@@ -2,10 +2,6 @@ package migrations
 
 // ConfigWire data foundation (todo 5).
 //
-// Defines the 9 base collections every later todo builds on:
-// projects, environments, groups, flags, rules, releases,
-// sdk_keys, events, experiments.
-//
 // Notes:
 //   - All API rules default-deny (nil); server code uses e.App /
 //     superuser context which bypasses rules.

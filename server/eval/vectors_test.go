@@ -1,8 +1,6 @@
-// Vectors suite pinning the evaluator contract (todo 6, implemented).
-//
-// EXPECTED STATE: GREEN. Every vector asserts the live implementation;
-// fallthrough-to-default vectors prove invalid inputs never panic and
-// never error.
+// Vectors suite pinning the evaluator contract: every vector asserts the live
+// implementation; fallthrough-to-default vectors prove invalid inputs never
+// panic and never error.
 //
 // Coverage: type coercion incl. mismatches, first-true ordering (3 ordered
 // rules), semver ops + invalid-semver fallthrough, locale/country,

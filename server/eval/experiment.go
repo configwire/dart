@@ -8,8 +8,11 @@ import (
 )
 
 const (
+	// StatusRunning overlays the assigned variant's values onto the base evaluation.
 	StatusRunning = "running"
-	StatusDraft   = "draft"
+	// StatusDraft returns the base evaluation with DefaultVariant, skipping assignment.
+	StatusDraft = "draft"
+	// StatusStopped returns the base evaluation with DefaultVariant, skipping assignment.
 	StatusStopped = "stopped"
 )
 

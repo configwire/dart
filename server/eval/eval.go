@@ -58,6 +58,8 @@ import (
 	"strings"
 )
 
+// Flag value types enforced by coerce: numbers accept any Go numeric,
+// strings and bools require exact types, json accepts objects and arrays only.
 const (
 	TypeNumber = "number"
 	TypeString = "string"
@@ -65,6 +67,7 @@ const (
 	TypeJSON   = "json"
 )
 
+// Flag identifies a feature flag and its fallback when no rule matches.
 type Flag struct {
 	Key     string `json:"key"`
 	Type    string `json:"type"`
@@ -86,6 +89,7 @@ type Rule struct {
 	Value      any         `json:"value"`
 }
 
+// Context carries the request attributes Evaluate matches rules against.
 type Context struct {
 	UserID         string         `json:"userId"`
 	Platform       string         `json:"platform"`
@@ -96,9 +100,8 @@ type Context struct {
 	PercentileSeed string         `json:"percentileSeed"`
 }
 
-// Values (optional) holds per-flag overrides keyed by flag
-// key: Values[flag.Key]. Only EvaluateWithExperiment (experiment.go) reads
-// it; Assign/Bucket/Evaluate ignore it, so existing behavior is unchanged.
+// Variant is one experiment arm: its Values map holds per-flag overrides
+// keyed by flag key. Only EvaluateWithExperiment reads it; Assign/Bucket/Evaluate ignore it, so existing behavior is unchanged.
 type Variant struct {
 	Name      string         `json:"name"`
 	WeightBps int            `json:"weightBps"`

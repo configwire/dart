@@ -1,4 +1,5 @@
-// OWNERSHIP: this helper is called ONLY from the request paths owned by
+// Package security sets static response headers with no behavior change.
+// Ownership: this helper is called ONLY from the request paths owned by
 // the releases, stats, and fetch packages (their files). server/main.go
 // wiring is owned by server/main.go — never add calls there.
 //
@@ -12,7 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// Call at the top of a handler, before any body write.
+// SetHeaders stamps static security headers. Call at the top of a handler, before any body write.
 func SetHeaders(re *core.RequestEvent) {
 	h := re.Response.Header()
 	h.Set("X-Content-Type-Options", "nosniff")

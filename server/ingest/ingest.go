@@ -4,7 +4,7 @@
 // landed yet; T7 is parallel-disjoint, coordinate via notepad not edits):
 //
 //	POST /api/v1/env/:env/events
-//	Header: X-ConfigNest-Key: <full sdk key>
+//	Header: X-ConfigWire-Key: <full sdk key>
 //	Body: {"events":[{"kind":"fetch|exposure","flag":"<flag key>","variant":"<name>",
 //	    "userHash":"<opaque>", "ts":"2026-09-22T00:00:00Z | 1726870000"}]}
 //	flag/variant/userHash/ts are all optional; ts accepts RFC3339 string or
@@ -12,7 +12,7 @@
 //	STRICTLY REJECTED (400) — PII must never reach storage.
 //
 // SDK key format (contract for T10/T11/T16):
-//   - The full key is an opaque string presented in X-ConfigNest-Key.
+//   - The full key is an opaque string presented in X-ConfigWire-Key.
 //   - sdk_keys rows store prefix = first 8 chars of the full key (fast
 //     prefilter) and hash = lowercase hex(sha256(fullKey)) (constant-time
 //     comparison). The full key is never stored.
@@ -44,7 +44,7 @@ import (
 // Tunables for the ingest path.
 const (
 	// HeaderKey carries the full SDK key.
-	HeaderKey = "X-ConfigNest-Key"
+	HeaderKey = "X-ConfigWire-Key"
 	// MaxBatchEvents bounds a single request body; larger → 400.
 	MaxBatchEvents = 100
 	// MaxBodyBytes bounds the whole request body; larger → 413.
@@ -206,7 +206,7 @@ func ResolveUserHash(userHash, userID string) string {
 	return ""
 }
 
-// RequireSDKKey authenticates X-ConfigNest-Key against sdk_keys (exported for
+// RequireSDKKey authenticates X-ConfigWire-Key against sdk_keys (exported for
 // T10 reuse). Lookup prefilters on prefix (first 8 chars) then compares
 // hex(sha256(fullKey)) in constant time. Unknown/missing/revoked → 401 error
 // suitable for returning directly from a handler.

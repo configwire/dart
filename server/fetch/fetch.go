@@ -3,7 +3,7 @@
 //	GET /api/v1/env/:env/config?platform=&appVersion=&locale=&country=&uid=&attrs=<json>&exp=<status>
 //
 // FETCH CONTRACT (T12/T13/T14/T17 read this):
-//   - Auth: X-ConfigNest-Key via ingest.RequireSDKKey reuse. Unknown, missing,
+//   - Auth: X-ConfigWire-Key via ingest.RequireSDKKey reuse. Unknown, missing,
 //     revoked, or env-mismatched keys -> 401. SDK keys and userIDs are never
 //     logged (hashes only); evaluation cost is O(flags + rules) per request.
 //   - Env: resolved deterministically from the key's env (the key's env
@@ -46,14 +46,17 @@
 //     carry Content-Encoding: gzip.
 //   - CORS: every fetch response (including 304) sets
 //     Access-Control-Allow-Origin, default "*" for Flutter/web dev. Restrict
-//     in production with env CONFIGNEST_CORS_ORIGIN=https://app.example.com
-//     (single origin, no paid infra, simple header). An OPTIONS preflight
+//     in production with env CONFIGWIRE_CORS_ORIGIN=https://app.example.com
+//     (single origin, no paid infra, simple header). The legacy
+//     CONFIGNEST_CORS_ORIGIN is still honored as a fallback with a
+//     deprecation warning. An OPTIONS preflight
 //     route answers 204 with Allow-Origin/Methods/Headers.
 package fetch
 
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -76,10 +79,20 @@ const MaxAttrsBytes = 8192
 // emptyReleaseEtag is served when an env has no release row yet.
 const emptyReleaseEtag = "none"
 
+// allowHeaders lists the request headers the fetch preflight permits:
+// the ConfigWire SDK key header plus conditional-refresh.
+const allowHeaders = "X-ConfigWire-Key, If-None-Match"
+
 // corsOrigin returns the allowed origin for fetch responses: the
-// CONFIGNEST_CORS_ORIGIN env value when set, else "*" (dev default).
+// CONFIGWIRE_CORS_ORIGIN env value when set, else the legacy
+// CONFIGNEST_CORS_ORIGIN value (with a one-line deprecation warning),
+// else "*" (dev default). When both are set the new var wins silently.
 func corsOrigin() string {
+	if v := os.Getenv("CONFIGWIRE_CORS_ORIGIN"); v != "" {
+		return v
+	}
 	if v := os.Getenv("CONFIGNEST_CORS_ORIGIN"); v != "" {
+		log.Println("WARN: CONFIGNEST_CORS_ORIGIN is deprecated, use CONFIGWIRE_CORS_ORIGIN")
 		return v
 	}
 	return "*"
@@ -98,7 +111,7 @@ func optionsConfig(re *core.RequestEvent) error {
 	h := re.Response.Header()
 	h.Set("Access-Control-Allow-Origin", corsOrigin())
 	h.Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	h.Set("Access-Control-Allow-Headers", "X-ConfigNest-Key, If-None-Match")
+	h.Set("Access-Control-Allow-Headers", allowHeaders)
 	h.Set("Access-Control-Max-Age", "86400")
 	return re.NoContent(http.StatusNoContent)
 }

@@ -31,7 +31,7 @@ func registerSpikeRoutes(se *core.ServeEvent) {
 }
 
 func spikeCheckKey(re *core.RequestEvent) error {
-	if re.Request.Header.Get("X-ConfigNest-Key") != spikeSDKKey {
+	if re.Request.Header.Get(ingest.HeaderKey) != spikeSDKKey {
 		return re.UnauthorizedError("Missing or invalid SDK key.", nil)
 	}
 	return nil

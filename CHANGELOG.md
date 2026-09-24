@@ -1,4 +1,4 @@
-## Unreleased
+## 0.0.2
 
 ### Added
 - `TargetingContext` (`lib/src/targeting.dart`, exported from

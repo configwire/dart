@@ -6,10 +6,12 @@ import 'package:http/http.dart' as http;
 import 'cache.dart';
 import 'events.dart';
 import 'realtime.dart';
+import 'targeting.dart';
 
 export 'cache.dart';
 export 'events.dart';
 export 'realtime.dart';
+export 'targeting.dart';
 
 /// Result of the last fetch attempt.
 enum FetchStatus {
@@ -90,6 +92,22 @@ class ConfigWire {
 
   final http.Client? _client;
   http.Client? _owned;
+
+  /// Last targeting context used for fetch (sticky across calls).
+  /// Updated on every [fetchAndActivate]/[ensureInitialized] call that
+  /// passes targeting params; realtime refreshes reuse it verbatim so
+  /// push/poll ticks stay evaluated for the same user/device.
+  TargetingContext _targeting = TargetingContext.empty;
+
+  /// Current targeting context (sticky; see [_targeting]).
+  TargetingContext get targeting => _targeting;
+
+  /// Replaces the sticky targeting context without fetching.
+  /// The next [fetchAndActivate] (incl. realtime ticks) uses it unless
+  /// that call passes explicit targeting params.
+  void setTargeting(TargetingContext context) {
+    _targeting = context;
+  }
 
   /// Cache persistence. When null at construction, [MemoryCacheStore]
   /// is used (session only, no disk); pass a [CacheStore]
@@ -194,7 +212,13 @@ class ConfigWire {
   /// Never throws: a missing/corrupt cache means defaults until the
   /// fetch resolves (which itself never throws); a failed fetch keeps
   /// the cached values (or defaults on a cold cache).
-  Future<void> ensureInitialized({String? userId}) async {
+  ///
+  /// Targeting ([context]) is sticky: a non-null [context] replaces the
+  /// stored [targeting] for this and all future fetches (incl. realtime
+  /// ticks); null reuses the stored value. To change one field:
+  /// `fetchAndActivate(context: cw.targeting.copyWith(platform: 'ios'))`.
+  /// To clear: pass a context with `''` (or `{}` for `customAttrs`).
+  Future<void> ensureInitialized({TargetingContext? context}) async {
     CacheData? cached;
     try {
       cached = await _store.load();
@@ -212,7 +236,7 @@ class ConfigWire {
         variants: cached.variants,
       );
     }
-    await fetchAndActivate(userId: userId, force: true);
+    await fetchAndActivate(context: context, force: true);
   }
 
   /// Fetches the latest release and activates it.
@@ -232,7 +256,14 @@ class ConfigWire {
   /// realtime path ([connectRealtime]) always passes `force: true` so
   /// push events and poll ticks stay fresh regardless of the throttle;
   /// direct callers keep the default `false`.
-  Future<bool> fetchAndActivate({String? userId, bool force = false}) async {
+  ///
+  /// Targeting ([context]) is sticky: a non-null [context] replaces the
+  /// stored [targeting] wholesale; null reuses it. Single-field update:
+  /// `fetchAndActivate(context: cw.targeting.copyWith(platform: 'ios'))`.
+  Future<bool> fetchAndActivate({
+    TargetingContext? context,
+    bool force = false,
+  }) async {
     final now = DateTime.now().toUtc();
     if (!force &&
         minimumFetchInterval > Duration.zero &&
@@ -242,12 +273,11 @@ class ConfigWire {
       return false;
     }
 
-    final uid = (userId ?? '').trim();
+    if (context != null) _targeting = context;
+    final uid = _targeting.userId.trim();
     final client = _http;
     try {
-      final uri = Uri.parse(
-        '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/env/${Uri.encodeComponent(env)}/config${uid.isEmpty ? '' : '?uid=${Uri.encodeComponent(uid)}'}',
-      );
+      final uri = _buildConfigUri(_targeting);
       final headers = <String, String>{'X-ConfigWire-Key': apiKey};
       if (_etag != null && _etag!.isNotEmpty) {
         // Stored verbatim; the server 304s on EXACT match only.
@@ -312,6 +342,16 @@ class ConfigWire {
       _lastFetchStatus = FetchStatus.error;
       return false;
     }
+  }
+
+  /// Builds `GET /api/v1/env/{env}/config?...` with targeting query
+  /// params omitted when empty (`TargetingContext.toQueryParameters`).
+  Uri _buildConfigUri(TargetingContext targeting) {
+    final base = baseUrl.replaceAll(RegExp(r'/+$'), '');
+    final path = '/api/v1/env/${Uri.encodeComponent(env)}/config';
+    final query = targeting.toQueryParameters();
+    if (query.isEmpty) return Uri.parse('$base$path');
+    return Uri.parse('$base$path').replace(queryParameters: query);
   }
 
   /// Applies one server layer: values merged over defaults, anonymous

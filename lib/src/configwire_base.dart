@@ -185,11 +185,102 @@ class ConfigWire {
     return fallback;
   }
 
-  /// Returns a copy of the JSON object at [key], or `{}` when missing or mistyped.
-  Map<String, Object?> getJSON(String key) {
+  /// Returns the value for [key] as [T], or [fallback] when missing or mistyped.
+  ///
+  /// Coerces ints via `toDouble()` when `T` is `double` (parity with
+  /// [getDouble]). When [fallback] is omitted and the key is missing or
+  /// mistyped, returns `null` for nullable [T] and throws a cast error
+  /// for non-nullable [T]. Collections from the server decode as
+  /// `List<dynamic>`/`Map<String, dynamic>`, so prefer [getList]/[getMap]
+  /// for those (a direct `get<List<String>>` over server values misses).
+  T get<T>(String key, {T? fallback}) {
     final v = _values[key] ?? _defaults[key];
-    if (v is Map) return Map<String, Object?>.from(v);
-    return const {};
+    if (v is T) {
+      // Defensive copies so callers can't mutate the live view.
+      if (v is Map) return Map.from(v) as T;
+      if (v is List) return List.from(v) as T;
+      return v;
+    }
+    if (v is int && T == double) return v.toDouble() as T;
+    return fallback as T;
+  }
+
+  /// Returns a copy of the list at [key] with every element of type [T].
+  ///
+  /// On any error (missing key, mistyped value, or a mistyped element)
+  /// [fallback] is returned; when [fallback] is null the error is
+  /// rethrown — mirroring the `onError` contract in the Firebase
+  /// reference (`asList`/`getList`).
+  ///
+  /// Unlike the reference (which `jsonDecode`s a string then `cast<T>()`),
+  /// values here are already decoded, so each element is checked eagerly
+  /// instead of returning a lazy cast view. Int elements are coerced via
+  /// `toDouble()` when `T` is `double` (parity with [getDouble]);
+  /// the reference is strict and would fall back there.
+  List<T> getList<T>(String key, {List<T>? fallback = const []}) {
+    try {
+      final v = _values[key] ?? _defaults[key];
+      if (v is List) {
+        if (v.isEmpty) return <T>[];
+        final out = <T>[];
+        for (final e in v) {
+          if (e is T) {
+            out.add(e);
+          } else if (e is int && T == double) {
+            out.add(e.toDouble() as T);
+          } else {
+            throw StateError('getList($key): element ${e.runtimeType} is not $T');
+          }
+        }
+        return out;
+      }
+      throw StateError('getList($key): value is ${v.runtimeType}, not List');
+    } catch (_) {
+      if (fallback == null) rethrow;
+      return fallback;
+    }
+  }
+
+  /// Returns a copy of the JSON object at [key] with every value of type
+  /// [T].
+  ///
+  /// On any error (missing key, mistyped value, non-String key, or a
+  /// mistyped entry) [fallback] is returned; when [fallback] is null the
+  /// error is rethrown — mirroring the `onError` contract in the Firebase
+  /// reference (`asMap`/`getMap`).
+  ///
+  /// Unlike the reference (which `jsonDecode`s a string then
+  /// `cast<String, T>()`), values here are already decoded, so each entry
+  /// is checked eagerly instead of returning a lazy cast view. Int values
+  /// are coerced via `toDouble()` when `T` is `double` (parity with
+  /// [getDouble]); the reference is strict and would fall back there.
+  Map<String, T> getMap<T>(String key, {Map<String, T>? fallback = const {}}) {
+    try {
+      final v = _values[key] ?? _defaults[key];
+      if (v is Map) {
+        if (v.isEmpty) return <String, T>{};
+        final out = <String, T>{};
+        for (final e in v.entries) {
+          if (e.key is! String) {
+            throw StateError('getMap($key): key ${e.key.runtimeType} is not String');
+          }
+          final k = e.key as String;
+          final val = e.value;
+          if (val is T) {
+            out[k] = val;
+          } else if (val is int && T == double) {
+            out[k] = val.toDouble() as T;
+          } else {
+            throw StateError('getMap($key): value of "$k" is ${val.runtimeType}, not $T');
+          }
+        }
+        return out;
+      }
+      throw StateError('getMap($key): value is ${v.runtimeType}, not Map');
+    } catch (_) {
+      if (fallback == null) rethrow;
+      return fallback;
+    }
   }
 
   /// Returns a copy of the live view (`{...defaults, ...serverValues}`).

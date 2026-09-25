@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'cache.dart';
+import 'cw_logger.dart';
 import 'events.dart';
 import 'realtime.dart';
 import 'targeting.dart';
@@ -67,6 +68,7 @@ class ConfigWire {
     this._client,
     this.minimumFetchInterval = const Duration(hours: 12),
     this.fetchTimeout = const Duration(seconds: 60),
+    this.verbose = false,
     CacheStore? store,
   }) : _defaults = Map<String, Object?>.from(defaults),
        _values = Map<String, Object?>.from(defaults),
@@ -123,6 +125,12 @@ class ConfigWire {
   /// Per-request timeout for the config GET. Errors (incl. timeouts)
   /// fall back to stale cache/defaults and never throw.
   final Duration fetchTimeout;
+
+  /// Opt-in verbose debug logging. When true, lifecycle/fetch/cache/
+  /// realtime events are emitted via `cwDebug`; when false (default)
+  /// the client stays silent. Logging only: never affects behavior,
+  /// return values, or defaults. The apiKey is never logged.
+  final bool verbose;
 
   final StreamController<Map<String, Object?>> _updateController =
       StreamController<Map<String, Object?>>.broadcast();
@@ -326,10 +334,20 @@ class ConfigWire {
   /// `fetchAndActivate(context: cw.targeting.copyWith(platform: 'ios'))`.
   /// To clear: pass a context with `''` (or `{}` for `customAttrs`).
   Future<void> ensureInitialized({TargetingContext? context}) async {
+    cwDebug(
+      verbose,
+      () => 'ensureInitialized start env=$env hasContext=${context != null} '
+          'initialized=$_initialized',
+    );
     if (_initialized) {
       if (context != null) {
         await fetchAndActivate(context: context, force: true);
       }
+      cwDebug(
+        verbose,
+        () => 'ensureInitialized complete (already initialized) env=$env '
+            'status=$_lastFetchStatus',
+      );
       return;
     }
     final inFlight = _initFuture;
@@ -338,6 +356,11 @@ class ConfigWire {
       if (context != null && _initialized) {
         await fetchAndActivate(context: context, force: true);
       }
+      cwDebug(
+        verbose,
+        () => 'ensureInitialized complete (joined in-flight) env=$env '
+            'status=$_lastFetchStatus',
+      );
       return;
     }
     final future = _doEnsureInitialized(context);
@@ -345,6 +368,10 @@ class ConfigWire {
     try {
       await future;
       _initialized = true;
+      cwDebug(
+        verbose,
+        () => 'ensureInitialized complete env=$env status=$_lastFetchStatus',
+      );
     } finally {
       _initFuture = null;
     }
@@ -353,22 +380,35 @@ class ConfigWire {
   /// Single initialization attempt: cache load + forced fetch.
   /// Never throws (see [ensureInitialized]).
   Future<void> _doEnsureInitialized(TargetingContext? context) async {
+    cwDebug(verbose, () => 'init start env=$env baseUrl=$baseUrl');
     CacheData? cached;
+    var loadFailed = false;
     try {
       cached = await _store.load();
     } catch (_) {
       // A throwing store behaves as a cold cache: defaults until the
       // fetch resolves (which itself never throws).
+      loadFailed = true;
       cached = null;
     }
     if (cached != null) {
-      _applyServerValues(
-        values: cached.values,
-        etag: cached.etag,
-        version: cached.version,
-        fetchedAt: cached.fetchedAt,
-        variants: cached.variants,
+      final hit = cached;
+      cwDebug(
+        verbose,
+        () => 'cache hit values=${hit.values.length} keys '
+            'version=${hit.version} etag=${hit.etag}',
       );
+      _applyServerValues(
+        values: hit.values,
+        etag: hit.etag,
+        version: hit.version,
+        fetchedAt: hit.fetchedAt,
+        variants: hit.variants,
+      );
+    } else if (loadFailed) {
+      cwDebug(verbose, () => 'cache corrupt (load threw) env=$env');
+    } else {
+      cwDebug(verbose, () => 'cache miss env=$env');
     }
     await fetchAndActivate(context: context, force: true);
   }
@@ -403,6 +443,7 @@ class ConfigWire {
         minimumFetchInterval > Duration.zero &&
         _lastFetchAt != null &&
         now.difference(_lastFetchAt!) < minimumFetchInterval) {
+      cwDebug(verbose, () => 'fetch throttled skip env=$env');
       _lastFetchStatus = FetchStatus.throttled;
       return false;
     }
@@ -417,16 +458,26 @@ class ConfigWire {
         // Stored verbatim; the server 304s on EXACT match only.
         headers['If-None-Match'] = _etag!;
       }
+      cwDebug(
+        verbose,
+        () => 'fetch start env=$env hasEtag=${_etag != null && _etag!.isNotEmpty}',
+      );
       final resp = await client
           .get(uri, headers: headers)
           .timeout(fetchTimeout);
 
       if (resp.statusCode == 304) {
+        cwDebug(verbose, () => 'fetch 304 cached env=$env');
         _lastFetchAt = now;
         _lastFetchStatus = FetchStatus.cached;
         return false;
       }
       if (resp.statusCode != 200) {
+        final status = resp.statusCode;
+        cwDebug(
+          verbose,
+          () => 'fetch non-200 status=$status env=$env',
+        );
         _lastFetchStatus = FetchStatus.error;
         return false;
       }
@@ -434,6 +485,7 @@ class ConfigWire {
       final parsed = _parseFetchBody(resp.body);
       if (parsed == null) {
         // Malformed 200: keep stale cache, no throw.
+        cwDebug(verbose, () => 'fetch malformed 200 env=$env');
         _lastFetchStatus = FetchStatus.error;
         return false;
       }
@@ -448,6 +500,11 @@ class ConfigWire {
       );
       _lastFetchAt = at;
       _lastFetchStatus = FetchStatus.success;
+      cwDebug(
+        verbose,
+        () => 'fetch 200 version=${parsed.version} etag=${parsed.etag} '
+            'keys=${parsed.values.length}',
+      );
 
       // Best-effort persistence + analytics: neither may fail the fetch.
       try {
@@ -460,7 +517,12 @@ class ConfigWire {
             variants: Map<String, String>.from(_variants),
           ),
         );
-      } catch (_) {}
+      } catch (e) {
+        final saveError = apiKey.isNotEmpty
+            ? '$e'.replaceAll(apiKey, '<redacted>')
+            : '$e';
+        cwDebug(verbose, () => 'store.save failed env=$env error=$saveError');
+      }
       await postFetchEvent(
         client: client,
         baseUrl: baseUrl,
@@ -468,11 +530,16 @@ class ConfigWire {
         apiKey: apiKey,
         userId: uid,
         variants: Map<String, String>.from(_variants),
+        verbose: verbose,
       );
       return true;
-    } catch (_) {
+    } catch (e) {
       // Network failure, timeout, malformed URL, sync throw from the
       // transport: stale cache (or cold defaults) + error status.
+      final fetchError = apiKey.isNotEmpty
+          ? '$e'.replaceAll(apiKey, '<redacted>')
+          : '$e';
+      cwDebug(verbose, () => 'fetch error env=$env error=$fetchError');
       _lastFetchStatus = FetchStatus.error;
       return false;
     }
@@ -497,6 +564,11 @@ class ConfigWire {
     required DateTime fetchedAt,
     required Map<String, String> variants,
   }) {
+    cwDebug(
+      verbose,
+      () => 'apply version=$version etag=$etag keys=${values.length} '
+          'variants=${variants.length}',
+    );
     _values
       ..clear()
       ..addAll(_defaults)
@@ -531,12 +603,14 @@ class ConfigWire {
   Future<void> connectRealtime({
     Duration pollInterval = const Duration(minutes: 15),
   }) async {
+    cwDebug(verbose, () => 'realtime connect start env=$env baseUrl=$baseUrl');
     await disconnectRealtime();
     final updater = RealtimeUpdater(
       baseUrl: baseUrl,
       apiKey: apiKey,
       env: env,
       pollInterval: pollInterval,
+      verbose: verbose,
       onRefresh: () async {
         // Forced: realtime freshness must not be throttled by
         // minimumFetchInterval (the staleness bound assumes it).
@@ -552,6 +626,7 @@ class ConfigWire {
     );
     _realtime = updater;
     updater.connect();
+    cwDebug(verbose, () => 'realtime connected env=$env');
   }
 
   /// Stops live updates started by [connectRealtime]. Safe when never
@@ -559,6 +634,10 @@ class ConfigWire {
   Future<void> disconnectRealtime() async {
     final updater = _realtime;
     _realtime = null;
+    cwDebug(
+      verbose,
+      () => 'realtime disconnect start env=$env active=${updater != null}',
+    );
     if (updater != null) {
       try {
         await updater.dispose();
@@ -566,11 +645,16 @@ class ConfigWire {
         // Dispose must not throw out of disconnect.
       }
     }
+    cwDebug(
+      verbose,
+      () => 'realtime disconnected env=$env wasActive=${updater != null}',
+    );
   }
 
   /// Closes the realtime updater (if any), then the [onUpdate] stream
   /// and the owned HTTP client. Test/smoke only.
   Future<void> dispose() async {
+    cwDebug(verbose, () => 'dispose start env=$env');
     await disconnectRealtime();
     try {
       await _updateController.close();
@@ -578,6 +662,7 @@ class ConfigWire {
       // Double-dispose must not throw.
     }
     _owned?.close();
+    cwDebug(verbose, () => 'dispose complete env=$env');
   }
 }
 

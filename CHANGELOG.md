@@ -1,3 +1,18 @@
+## 0.0.5
+
+### Added
+- Opt-in verbose debug logging via `lite_logger`
+  (`lib/src/cw_logger.dart`, new `lite_logger: ^0.3.0` dependency).
+  Off by default; pass `verbose: true` to `ConfigWire(...)`,
+  `RealtimeUpdater(...)`, or `postFetchEvent(...)` to emit debug logs
+  for init, cache hit/miss, fetch start/304/non-200/malformed/success,
+  store-save failures, SSE connect/status/close, poll ticks, and the
+  fetch-event POST. Messages are lazy closures so nothing is built when
+  `verbose` is false. The `apiKey` is never logged (only sent as the
+  `X-ConfigWire-Key` header); caught errors are redacted before logging.
+  `ConfigWire(verbose: true)` propagates to its realtime updater and
+  fetch-event calls.
+
 ## 0.0.4
 
 ### Changed

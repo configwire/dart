@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'cw_logger.dart';
+
 /// Connection state of a [RealtimeUpdater]. Surfaced for status display
 /// and tests; background loops NEVER throw — failures land here plus
 /// [RealtimeUpdater.lastError].
@@ -71,6 +73,7 @@ class RealtimeUpdater {
     required this.env,
     this.pollInterval = const Duration(minutes: 15),
     this.onRefresh,
+    this.verbose = false,
     http.Client? streamClient,
   }) : _streamClient = streamClient ?? http.Client(),
        _ownsClient = streamClient == null;
@@ -95,6 +98,10 @@ class RealtimeUpdater {
   /// wires this to `() => fetchAndActivate(force: true)` + conditional
   /// `onUpdate` emit. Return value is ignored here.
   final Future<void> Function()? onRefresh;
+
+  /// Opt-in verbose debug logging. When true, lifecycle events are
+  /// emitted via [cwDebug]; when false (default) nothing is logged.
+  final bool verbose;
 
   final http.Client _streamClient;
   final bool _ownsClient;
@@ -138,6 +145,11 @@ class RealtimeUpdater {
     _running = true;
     _status = RealtimeStatus.connecting;
     _buf.clear();
+    cwDebug(
+      verbose,
+      () =>
+          'realtime connect env=$env pollInterval=$pollInterval generation=$_generation',
+    );
     final effectivePoll =
         pollInterval < const Duration(seconds: 1)
             ? const Duration(seconds: 1)
@@ -151,12 +163,14 @@ class RealtimeUpdater {
   /// Stops the poll timer + the stream loop and closes the owned HTTP
   /// client. Safe to call when already disconnected. Never throws.
   Future<void> disconnect() async {
+    cwDebug(verbose, () => 'realtime disconnect env=$env');
     disconnectSync();
     // Let any in-flight stream read observe _running == false.
     await Future<void>.delayed(Duration.zero);
   }
 
   void disconnectSync() {
+    final wasActive = _running || _status != RealtimeStatus.disconnected;
     _running = false;
     _generation++;
     _buf.clear();
@@ -187,10 +201,14 @@ class RealtimeUpdater {
     if (_status != RealtimeStatus.disconnected) {
       _status = RealtimeStatus.disconnected;
     }
+    if (wasActive) {
+      cwDebug(verbose, () => 'realtime stopped env=$env');
+    }
   }
 
   /// [disconnect] + closes the [notifications] controller.
   Future<void> dispose() async {
+    cwDebug(verbose, () => 'realtime dispose env=$env');
     _disposed = true;
     disconnectSync();
     await Future<void>.delayed(Duration.zero);
@@ -212,6 +230,7 @@ class RealtimeUpdater {
     if (!_running || _disposed) return;
     final refresh = onRefresh;
     if (refresh == null) return;
+    cwDebug(verbose, () => 'realtime poll tick env=$env');
     // Fire-and-forget: a throwing/slow refresh must never kill the timer.
     unawaited(_guard(refresh));
   }
@@ -235,6 +254,7 @@ class RealtimeUpdater {
         final req = http.Request('GET', uri)
           ..headers['X-ConfigWire-Key'] = apiKey
           ..headers['Accept'] = 'text/event-stream';
+        cwDebug(verbose, () => 'realtime stream GET start env=$env');
         final resp = await _streamClient.send(req).timeout(
           const Duration(seconds: 10),
         );
@@ -248,8 +268,13 @@ class RealtimeUpdater {
         }
         if (resp.statusCode != 200) {
           // e.g. 401 bad key: surface, do NOT throw, back off + retry.
+          // Status code only — never log headers/body/key.
           _lastError = 'stream HTTP ${resp.statusCode}';
           _status = RealtimeStatus.error;
+          cwDebug(
+            verbose,
+            () => 'realtime stream non-200 env=$env status=${resp.statusCode}',
+          );
           try {
             await resp.stream.drain();
           } catch (_) {
@@ -261,21 +286,26 @@ class RealtimeUpdater {
         _status = RealtimeStatus.connected;
         _lastError = null;
         _backoffAttempt = 0;
+        cwDebug(verbose, () => 'realtime connected env=$env');
         await _readStream(resp);
         // Stream closed without disconnect(): unexpected close.
         if (!_running || _disposed || gen != _generation) return;
         _lastError = 'stream closed by server';
         _status = RealtimeStatus.error;
+        cwDebug(verbose, () => 'realtime unexpected close env=$env');
         await _backoffWait(gen);
       } catch (e) {
         if (!_running || _disposed || gen != _generation) return;
         // Network down, DNS, timeout, malformed baseUrl: surface only.
         // Guard empty key: ''.replaceAll would corrupt every message.
+        // REDACT: never surface the SDK key in logs or lastError.
         final raw = '$e';
-        _lastError = apiKey.isNotEmpty
+        final safe = apiKey.isNotEmpty
             ? raw.replaceAll(apiKey, '<redacted>')
             : raw;
+        _lastError = safe;
         _status = RealtimeStatus.error;
+        cwDebug(verbose, () => 'realtime stream error env=$env error=$safe');
         await _backoffWait(gen);
       }
     }
@@ -372,9 +402,13 @@ class RealtimeUpdater {
     Map<String, Object?> decoded;
     try {
       final parsed = jsonDecode(dataLines.join('\n'));
-      if (parsed is! Map) return;
+      if (parsed is! Map) {
+        cwDebug(verbose, () => 'realtime malformed data ignored env=$env');
+        return;
+      }
       decoded = Map<String, Object?>.from(parsed);
     } catch (_) {
+      cwDebug(verbose, () => 'realtime malformed data ignored env=$env');
       return; // malformed data: ignore, no throw.
     }
     final version = decoded['version'];
@@ -385,6 +419,12 @@ class RealtimeUpdater {
           : (version is num ? version.toInt() : 0),
       'etag': etag is String ? etag : '',
     };
+    // etag is server state, not a secret — safe to log.
+    cwDebug(
+      verbose,
+      () =>
+          "realtime config_update env=$env version=${notification['version']} etag=${notification['etag']}",
+    );
     if (!_notificationController.isClosed) {
       try {
         _notificationController.add(notification);

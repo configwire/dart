@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:http/http.dart' as http;
 
+import 'cw_logger.dart';
+
 /// Best-effort fetch-event POST helper.
 ///
 /// After a successful 200 fetch the SDK reports one analytics event:
@@ -30,8 +32,10 @@ Future<void> postFetchEvent({
   required String userId,
   required Map<String, String> variants,
   Duration timeout = const Duration(seconds: 5),
+  bool verbose = false,
 }) async {
   try {
+    cwDebug(verbose, () => 'events POST start env=$env');
     final uri = Uri.parse(
       '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/env/${Uri.encodeComponent(env)}/events',
     );
@@ -45,7 +49,7 @@ Future<void> postFetchEvent({
         },
       ],
     });
-    await client
+    final resp = await client
         .post(
           uri,
           headers: {
@@ -55,10 +59,20 @@ Future<void> postFetchEvent({
           body: body,
         )
         .timeout(timeout);
+    cwDebug(
+      verbose,
+      () => 'events POST success env=$env status=${resp.statusCode}',
+    );
     // Response status/body intentionally ignored: any status
     // (202, 429, 401, ...) is fine — best effort only.
-  } catch (_) {
+  } catch (e) {
     // Intentionally swallowed: analytics must never break fetching.
+    // REDACT: never surface the SDK key in logs.
+    final raw = '$e';
+    final safe = apiKey.isNotEmpty
+        ? raw.replaceAll(apiKey, '<redacted>')
+        : raw;
+    cwDebug(verbose, () => 'events POST failed env=$env error=$safe');
   }
 }
 

@@ -31,6 +31,13 @@ Future<void> main() async {
 
   if (live) {
     await cw.ensureInitialized();
+    // Sticky targeting: sent as fetch query params (?uid=, ?platform=,
+    // ?appVersion=, ?locale=, ?country=, ?attrs=) so the server can
+    // evaluate `rules` per fetch. Empty fields are omitted (anonymous).
+    cw.setTargeting(
+      const TargetingContext(userId: 'user-7', platform: 'ios'),
+    );
+    await cw.fetchAndActivate();
     // NOTE: values printed, apiKey never printed.
     // ignore: avoid_print
     print(

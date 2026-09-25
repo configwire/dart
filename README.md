@@ -79,6 +79,35 @@ final on = cw.getBool('launch_flag');
 await cw.dispose();
 ```
 
+## Targeting
+
+Targeting attributes are sent as fetch query params so the server can
+evaluate `rules` per fetch (`userId` → `?uid=`, `platform`,
+`appVersion`, `locale`, `country`, `customAttrs` → `?attrs=` JSON).
+Empty strings / empty maps are omitted (anonymous).
+
+Targeting is sticky: `setTargeting` replaces the stored context without
+fetching, and the next `fetchAndActivate` (including realtime ticks)
+uses it. Passing `context:` to `fetchAndActivate` replaces it wholesale
+for that fetch and onward:
+
+```dart
+cw.setTargeting(const TargetingContext(
+  userId: 'user-7',
+  platform: 'ios',
+  appVersion: '1.2.3',
+  locale: 'en-US',
+  country: 'US',
+  customAttrs: {'plan': 'pro'},
+));
+await cw.fetchAndActivate();
+
+// Single-field update without rebuilding the whole context:
+await cw.fetchAndActivate(
+  context: cw.targeting.copyWith(platform: 'android'),
+);
+```
+
 Realtime: `cw.connectRealtime()` opens SSE plus a 15min poll fallback,
 so freshness is at most `pollInterval` plus one fetch on every path.
 

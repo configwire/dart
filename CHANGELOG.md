@@ -1,3 +1,14 @@
+## 0.0.4
+
+### Changed
+- `ensureInitialized` (`lib/src/configwire_base.dart`) is now idempotent
+  and safe to call multiple times. Concurrent calls share the same
+  in-flight initialization (single cache load + single forced fetch),
+  and calls after the first attempt return immediately without
+  re-loading the cache or re-fetching. Passing a non-null `context`
+  still triggers a forced `fetchAndActivate` refresh with the new
+  targeting, so retargeting via `ensureInitialized` keeps working.
+
 ## 0.0.3
 
 ### Added

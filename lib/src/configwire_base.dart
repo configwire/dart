@@ -146,6 +146,15 @@ class ConfigWire {
   DateTime? _lastFetchAt;
   FetchStatus _lastFetchStatus = FetchStatus.none;
 
+  /// In-flight initialization shared by concurrent [ensureInitialized]
+  /// callers; null when no init is running.
+  Future<void>? _initFuture;
+
+  /// True once the first [ensureInitialized] attempt has finished
+  /// (success or soft-failure). Later calls are no-ops unless they pass
+  /// an explicit [TargetingContext], which triggers a forced refresh.
+  bool _initialized = false;
+
   /// Status of the last fetch attempt (`none` before the first attempt).
   FetchStatus get lastFetchStatus => _lastFetchStatus;
 
@@ -304,12 +313,46 @@ class ConfigWire {
   /// fetch resolves (which itself never throws); a failed fetch keeps
   /// the cached values (or defaults on a cold cache).
   ///
+  /// Safe to call multiple times: concurrent calls share the same
+  /// in-flight initialization, and calls after the first successful
+  /// (or soft-failed) attempt return immediately without re-loading
+  /// the cache or re-fetching — unless a non-null [context] is passed,
+  /// which triggers a forced `fetchAndActivate` refresh with the new
+  /// targeting.
+  ///
   /// Targeting ([context]) is sticky: a non-null [context] replaces the
   /// stored [targeting] for this and all future fetches (incl. realtime
   /// ticks); null reuses the stored value. To change one field:
   /// `fetchAndActivate(context: cw.targeting.copyWith(platform: 'ios'))`.
   /// To clear: pass a context with `''` (or `{}` for `customAttrs`).
   Future<void> ensureInitialized({TargetingContext? context}) async {
+    if (_initialized) {
+      if (context != null) {
+        await fetchAndActivate(context: context, force: true);
+      }
+      return;
+    }
+    final inFlight = _initFuture;
+    if (inFlight != null) {
+      await inFlight;
+      if (context != null && _initialized) {
+        await fetchAndActivate(context: context, force: true);
+      }
+      return;
+    }
+    final future = _doEnsureInitialized(context);
+    _initFuture = future;
+    try {
+      await future;
+      _initialized = true;
+    } finally {
+      _initFuture = null;
+    }
+  }
+
+  /// Single initialization attempt: cache load + forced fetch.
+  /// Never throws (see [ensureInitialized]).
+  Future<void> _doEnsureInitialized(TargetingContext? context) async {
     CacheData? cached;
     try {
       cached = await _store.load();

@@ -532,13 +532,16 @@ void main() {
       expect(onDisk['version'], equals(1));
       expect((onDisk['values'] as Map)['flag_bool'], isFalse);
 
-      // Fetch event posted best-effort with hashed user (anonymous -> "").
+      // Fetch events posted best-effort per served flag key (anonymous -> "").
       expect(postedBody, isNotNull);
       final body = jsonDecode(postedBody!) as Map;
-      final ev = (body['events'] as List).single as Map;
-      expect(ev['kind'], equals('fetch'));
-      expect(ev['flag'], equals(''));
-      expect(ev['userHash'], equals(''));
+      final evs = (body['events'] as List).cast<Map>();
+      expect(evs.length, equals(2));
+      expect(evs.map((e) => e['flag']).toSet(), equals({'flag_bool', 'flag_str'}));
+      for (final ev in evs) {
+        expect(ev['kind'], equals('fetch'));
+        expect(ev['userHash'], equals(''));
+      }
     });
 
     test('304-keep: cached values retained, returns false', () async {

@@ -12,14 +12,16 @@ import 'cw_logger.dart';
 ///
 /// ```json
 /// {"events":[{"kind":"fetch","flag":"","variant":"",
-///             "userHash":"<sha256hex16(userId)>"}]}
+///             "userHash":"<sha256hex16(userId)>","version":1}]}
 /// ```
 ///
 /// `flag` is always `""` (a fetch is env-wide, not per-flag); `variant`
 /// is `""` here because the variants map has no `""` key
-/// (`variants[""] ?? ""`). The server stores unknown/empty flag keys with
-/// the relation unset while preserving kind/variant/userHash, so this
-/// single aggregate event is safe to send.
+/// (`variants[""] ?? ""`). `version` is the fetched release version so
+/// stats can break fetches down per version. The server stores
+/// unknown/empty flag keys with the relation unset while preserving
+/// kind/variant/userHash/version, so this single aggregate event is
+/// safe to send.
 ///
 /// Fire-and-forget: every failure mode (network, timeout, non-2xx,
 /// malformed baseUrl) is swallowed and the future always completes
@@ -31,6 +33,7 @@ Future<void> postFetchEvent({
   required String apiKey,
   required String userId,
   required Map<String, String> variants,
+  int version = 0,
   Duration timeout = const Duration(seconds: 5),
   bool verbose = false,
 }) async {
@@ -46,6 +49,7 @@ Future<void> postFetchEvent({
           'flag': '',
           'variant': variants[''] ?? '',
           'userHash': sha256Hex16(userId),
+          'version': version,
         },
       ],
     });

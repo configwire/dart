@@ -539,6 +539,7 @@ void main() {
       expect(ev['kind'], equals('fetch'));
       expect(ev['flag'], equals(''));
       expect(ev['userHash'], equals(''));
+      expect(ev['version'], equals(1));
     });
 
     test('304-keep: cached values retained, returns false', () async {

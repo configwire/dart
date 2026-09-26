@@ -530,7 +530,6 @@ class ConfigWire {
         apiKey: apiKey,
         userId: uid,
         variants: Map<String, String>.from(_variants),
-        flagKeys: parsed.values.keys.whereType<String>().toList(),
         verbose: verbose,
       );
       return true;

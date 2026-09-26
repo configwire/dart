@@ -8,19 +8,18 @@ import 'cw_logger.dart';
 
 /// Best-effort fetch-event POST helper.
 ///
-/// After a successful 200 fetch the SDK reports one analytics event per
-/// fetched flag key:
+/// After a successful 200 fetch the SDK reports one analytics event:
 ///
 /// ```json
-/// {"events":[{"kind":"fetch","flag":"launch_flag","variant":"control",
+/// {"events":[{"kind":"fetch","flag":"","variant":"",
 ///             "userHash":"<sha256hex16(userId)>"}]}
 /// ```
 ///
-/// `flag` is the server-served flag key; `variant` is `variants[flag] ?? ""`
-/// (flags without an experiment arm record `""`). When the fetch served
-/// zero keys (empty release) a single env-wide aggregate with `flag:""`
-/// is sent so All-flags fetches still count. Batches are chunked to
-/// <=100 events per POST (server MaxBatchEvents).
+/// `flag` is always `""` (a fetch is env-wide, not per-flag); `variant`
+/// is `""` here because the variants map has no `""` key
+/// (`variants[""] ?? ""`). The server stores unknown/empty flag keys with
+/// the relation unset while preserving kind/variant/userHash, so this
+/// single aggregate event is safe to send.
 ///
 /// Fire-and-forget: every failure mode (network, timeout, non-2xx,
 /// malformed baseUrl) is swallowed and the future always completes
@@ -32,7 +31,6 @@ Future<void> postFetchEvent({
   required String apiKey,
   required String userId,
   required Map<String, String> variants,
-  List<String> flagKeys = const [],
   Duration timeout = const Duration(seconds: 5),
   bool verbose = false,
 }) async {
@@ -41,44 +39,32 @@ Future<void> postFetchEvent({
     final uri = Uri.parse(
       '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/env/${Uri.encodeComponent(env)}/events',
     );
-    final userHash = sha256Hex16(userId);
-    final keys = flagKeys.where((k) => k.isNotEmpty).toList()..sort();
-    final batchSources = keys.isEmpty
-        ? [
-            {'kind': 'fetch', 'flag': '', 'variant': '', 'userHash': userHash},
-          ]
-        : keys
-            .map((k) => {
-                  'kind': 'fetch',
-                  'flag': k,
-                  'variant': variants[k] ?? '',
-                  'userHash': userHash,
-                })
-            .toList();
-    // Chunk to server MaxBatchEvents (100) so large flag sets never 400.
-    for (var i = 0; i < batchSources.length; i += 100) {
-      final chunk = batchSources.sublist(
-        i,
-        i + 100 > batchSources.length ? batchSources.length : i + 100,
-      );
-      final body = jsonEncode({'events': chunk});
-      final resp = await client
-          .post(
-            uri,
-            headers: {
-              'Content-Type': 'application/json',
-              'X-ConfigWire-Key': apiKey,
-            },
-            body: body,
-          )
-          .timeout(timeout);
-      cwDebug(
-        verbose,
-        () => 'events POST success env=$env status=${resp.statusCode}',
-      );
-      // Response status/body intentionally ignored: any status
-      // (202, 429, 401, ...) is fine — best effort only.
-    }
+    final body = jsonEncode({
+      'events': [
+        {
+          'kind': 'fetch',
+          'flag': '',
+          'variant': variants[''] ?? '',
+          'userHash': sha256Hex16(userId),
+        },
+      ],
+    });
+    final resp = await client
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-ConfigWire-Key': apiKey,
+          },
+          body: body,
+        )
+        .timeout(timeout);
+    cwDebug(
+      verbose,
+      () => 'events POST success env=$env status=${resp.statusCode}',
+    );
+    // Response status/body intentionally ignored: any status
+    // (202, 429, 401, ...) is fine — best effort only.
   } catch (e) {
     // Intentionally swallowed: analytics must never break fetching.
     // REDACT: never surface the SDK key in logs.

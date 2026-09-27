@@ -70,6 +70,7 @@ class ConfigWire {
     this.fetchTimeout = const Duration(seconds: 60),
     this.verbose = false,
     CacheStore? store,
+    this._targeting = Targeting.empty,
   }) : _defaults = Map<String, Object?>.from(defaults),
        _values = Map<String, Object?>.from(defaults),
        _store = store ?? MemoryCacheStore();
@@ -95,20 +96,45 @@ class ConfigWire {
   final http.Client? _client;
   http.Client? _owned;
 
-  /// Last targeting context used for fetch (sticky across calls).
-  /// Updated on every [fetchAndActivate]/[ensureInitialized] call that
-  /// passes targeting params; realtime refreshes reuse it verbatim so
+  /// Last targeting attributes used for fetch (sticky across calls).
+  /// Set via the `targeting:` constructor param, [setTargeting], or
+  /// [updateTargeting]; realtime refreshes reuse it verbatim so
   /// push/poll ticks stay evaluated for the same user/device.
-  TargetingContext _targeting = TargetingContext.empty;
+  ///
+  /// Seeded by the `targeting:` constructor param (defaults to
+  /// [Targeting.empty]).
+  Targeting _targeting;
 
-  /// Current targeting context (sticky; see [_targeting]).
-  TargetingContext get targeting => _targeting;
+  /// Current targeting attributes (sticky; see [_targeting]).
+  Targeting get targeting => _targeting;
 
-  /// Replaces the sticky targeting context without fetching.
-  /// The next [fetchAndActivate] (incl. realtime ticks) uses it unless
-  /// that call passes explicit targeting params.
-  void setTargeting(TargetingContext context) {
-    _targeting = context;
+  /// Replaces the sticky targeting attributes without fetching.
+  /// The next [fetchAndActivate] (incl. realtime ticks) uses it.
+  /// For single-field merges use [updateTargeting].
+  void setTargeting(Targeting targeting) {
+    _targeting = targeting;
+  }
+
+  /// Merges the given non-null fields into the sticky [_targeting]
+  /// without fetching. Fields left null keep their current values
+  /// (via [Targeting.copyWith]); the next [fetchAndActivate] (incl.
+  /// realtime ticks) uses the merged value.
+  void updateTargeting({
+    String? userId,
+    String? platform,
+    String? appVersion,
+    String? locale,
+    String? country,
+    Map<String, Object?>? customAttrs,
+  }) {
+    _targeting = _targeting.copyWith(
+      userId: userId,
+      platform: platform,
+      appVersion: appVersion,
+      locale: locale,
+      country: country,
+      customAttrs: customAttrs,
+    );
   }
 
   /// Cache persistence. When null at construction, [MemoryCacheStore]
@@ -159,8 +185,7 @@ class ConfigWire {
   Future<void>? _initFuture;
 
   /// True once the first [ensureInitialized] attempt has finished
-  /// (success or soft-failure). Later calls are no-ops unless they pass
-  /// an explicit [TargetingContext], which triggers a forced refresh.
+  /// (success or soft-failure). Later calls are no-ops.
   bool _initialized = false;
 
   /// Status of the last fetch attempt (`none` before the first attempt).
@@ -324,25 +349,19 @@ class ConfigWire {
   /// Safe to call multiple times: concurrent calls share the same
   /// in-flight initialization, and calls after the first successful
   /// (or soft-failed) attempt return immediately without re-loading
-  /// the cache or re-fetching — unless a non-null [context] is passed,
-  /// which triggers a forced `fetchAndActivate` refresh with the new
-  /// targeting.
+  /// the cache or re-fetching.
   ///
-  /// Targeting ([context]) is sticky: a non-null [context] replaces the
-  /// stored [targeting] for this and all future fetches (incl. realtime
-  /// ticks); null reuses the stored value. To change one field:
-  /// `fetchAndActivate(context: cw.targeting.copyWith(platform: 'ios'))`.
-  /// To clear: pass a context with `''` (or `{}` for `customAttrs`).
-  Future<void> ensureInitialized({TargetingContext? context}) async {
+  /// Targeting is sticky ([targeting], seeded by the `targeting:`
+  /// constructor param): to fetch as a user, call [setTargeting] or
+  /// [updateTargeting] before [ensureInitialized]/[fetchAndActivate].
+  /// To clear: `setTargeting(const Targeting())`.
+  Future<void> ensureInitialized() async {
     cwDebug(
       verbose,
-      () => 'ensureInitialized start env=$env hasContext=${context != null} '
+      () => 'ensureInitialized start env=$env '
           'initialized=$_initialized',
     );
     if (_initialized) {
-      if (context != null) {
-        await fetchAndActivate(context: context, force: true);
-      }
       cwDebug(
         verbose,
         () => 'ensureInitialized complete (already initialized) env=$env '
@@ -353,9 +372,6 @@ class ConfigWire {
     final inFlight = _initFuture;
     if (inFlight != null) {
       await inFlight;
-      if (context != null && _initialized) {
-        await fetchAndActivate(context: context, force: true);
-      }
       cwDebug(
         verbose,
         () => 'ensureInitialized complete (joined in-flight) env=$env '
@@ -363,7 +379,7 @@ class ConfigWire {
       );
       return;
     }
-    final future = _doEnsureInitialized(context);
+    final future = _doEnsureInitialized();
     _initFuture = future;
     try {
       await future;
@@ -379,7 +395,7 @@ class ConfigWire {
 
   /// Single initialization attempt: cache load + forced fetch.
   /// Never throws (see [ensureInitialized]).
-  Future<void> _doEnsureInitialized(TargetingContext? context) async {
+  Future<void> _doEnsureInitialized() async {
     cwDebug(verbose, () => 'init start env=$env baseUrl=$baseUrl');
     CacheData? cached;
     var loadFailed = false;
@@ -410,7 +426,7 @@ class ConfigWire {
     } else {
       cwDebug(verbose, () => 'cache miss env=$env');
     }
-    await fetchAndActivate(context: context, force: true);
+    await fetchAndActivate(force: true);
   }
 
   /// Fetches the latest release and activates it.
@@ -431,11 +447,13 @@ class ConfigWire {
   /// push events and poll ticks stay fresh regardless of the throttle;
   /// direct callers keep the default `false`.
   ///
-  /// Targeting ([context]) is sticky: a non-null [context] replaces the
-  /// stored [targeting] wholesale; null reuses it. Single-field update:
-  /// `fetchAndActivate(context: cw.targeting.copyWith(platform: 'ios'))`.
+  /// Targeting is sticky ([targeting], seeded by the `targeting:`
+  /// constructor param): [fetchAndActivate] always evaluates the stored
+  /// value. To fetch as another user, call [setTargeting] for a wholesale
+  /// replace or [updateTargeting] for a single-field merge, then fetch:
+  /// `cw.setTargeting(const Targeting(userId: 'u')); await cw.fetchAndActivate();`
+  /// `cw.updateTargeting(platform: 'ios'); await cw.fetchAndActivate();`
   Future<bool> fetchAndActivate({
-    TargetingContext? context,
     bool force = false,
   }) async {
     final now = DateTime.now().toUtc();
@@ -448,7 +466,6 @@ class ConfigWire {
       return false;
     }
 
-    if (context != null) _targeting = context;
     final uid = _targeting.userId.trim();
     final client = _http;
     try {
@@ -547,8 +564,8 @@ class ConfigWire {
   }
 
   /// Builds `GET /api/v1/env/{env}/config?...` with targeting query
-  /// params omitted when empty (`TargetingContext.toQueryParameters`).
-  Uri _buildConfigUri(TargetingContext targeting) {
+  /// params omitted when empty (`Targeting.toQueryParameters`).
+  Uri _buildConfigUri(Targeting targeting) {
     final base = baseUrl.replaceAll(RegExp(r'/+$'), '');
     final path = '/api/v1/env/${Uri.encodeComponent(env)}/config';
     final query = targeting.toQueryParameters();

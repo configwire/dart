@@ -1,3 +1,38 @@
+## Unreleased
+
+### 0.0.6
+- **Breaking:** `TargetingContext` is renamed to `Targeting`
+  (`lib/src/targeting.dart`, still exported from
+  `package:configwire/configwire.dart`). Targeting inputs live in exactly
+  3 places: `ConfigWire(targeting: ...)` seeds the sticky targeting at
+  construction, `setTargeting(Targeting targeting)` replaces it wholesale,
+  and `updateTargeting(userId: ..., platform: ..., ...)` merges single
+  fields — all without fetching. `ensureInitialized()` and
+  `fetchAndActivate({bool force})` take no targeting param and always
+  evaluate the stored targeting.
+  Migrate: `const TargetingContext(userId: 'u')` ->
+  `const Targeting(userId: 'u')`; `fetchAndActivate(targeting: ...)` ->
+  `setTargeting(...); fetchAndActivate();`, single-field
+  `fetchAndActivate(targeting: cw.targeting.copyWith(platform: 'ios'))` ->
+  `updateTargeting(platform: 'ios'); fetchAndActivate();`.
+- Added `ConfigWire.updateTargeting({String? userId, String? platform,
+  String? appVersion, String? locale, String? country,
+  Map<String, Object?>? customAttrs})`: merges the given non-null fields
+  into the sticky targeting via `copyWith` without fetching, so
+  single-field updates no longer need a manual rebuild.
+
+### Added
+- Fetch-event version tracking (`lib/src/events.dart`,
+  `lib/src/configwire_base.dart`): `postFetchEvent(...)` takes a new
+  optional `version` (`int`, defaults to `0`) and includes it in the
+  fetch-event POST (`{"events":[{"kind":"fetch","flag":"","variant":"",
+  "userHash":"<sha256hex16(userId)>","version":1}]}`).
+  `ConfigWire.fetchAndActivate` passes `parsed.version` so stats can
+  break fetches down per release version. Backward compatible: old
+  servers ignore the unknown `version` field; old SDKs send no
+  `version` and the server records `0`. Analytics stays
+  fire-and-forget (all failure modes swallowed).
+
 ## 0.0.5
 
 ### Added

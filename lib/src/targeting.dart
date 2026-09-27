@@ -12,8 +12,8 @@ import 'dart:convert';
 /// * [customAttrs] -> `?attrs=<json>` -> `custom.*` flat lookup.
 ///
 /// Empty strings / empty maps are omitted from the query (anonymous).
-class TargetingContext {
-  const TargetingContext({
+class Targeting {
+  const Targeting({
     this.userId = '',
     this.platform = '',
     this.appVersion = '',
@@ -40,10 +40,10 @@ class TargetingContext {
   /// Flat map for `custom.<name>` conditions (`?attrs=` JSON object).
   final Map<String, Object?> customAttrs;
 
-  /// Empty (anonymous) context: no query params.
-  static const empty = TargetingContext();
+  /// Empty (anonymous) targeting: no query params.
+  static const empty = Targeting();
 
-  TargetingContext copyWith({
+  Targeting copyWith({
     String? userId,
     String? platform,
     String? appVersion,
@@ -51,7 +51,7 @@ class TargetingContext {
     String? country,
     Map<String, Object?>? customAttrs,
   }) {
-    return TargetingContext(
+    return Targeting(
       userId: userId ?? this.userId,
       platform: platform ?? this.platform,
       appVersion: appVersion ?? this.appVersion,

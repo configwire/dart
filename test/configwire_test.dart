@@ -783,9 +783,8 @@ void main() {
       });
       final client = await clientWith(mock);
       addTearDown(client.dispose);
-      await client.fetchAndActivate(
-        context: const TargetingContext(userId: 'qa-user-7'),
-      );
+      client.setTargeting(const Targeting(userId: 'qa-user-7'));
+      await client.fetchAndActivate();
       expect(gotUid, equals('qa-user-7'));
       expect(gotHash, equals(sha256Hex16('qa-user-7')));
       expect(gotHash, hasLength(16));

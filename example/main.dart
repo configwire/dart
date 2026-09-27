@@ -35,7 +35,7 @@ Future<void> main() async {
     // ?appVersion=, ?locale=, ?country=, ?attrs=) so the server can
     // evaluate `rules` per fetch. Empty fields are omitted (anonymous).
     cw.setTargeting(
-      const TargetingContext(userId: 'user-7', platform: 'ios'),
+      const Targeting(userId: 'user-7', platform: 'ios'),
     );
     await cw.fetchAndActivate();
     // NOTE: values printed, apiKey never printed.

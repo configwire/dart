@@ -9,12 +9,12 @@ import 'package:test/test.dart';
 /// store for disk.
 void main() {
   CacheData sample() => CacheData(
-        etag: 'etag-abc',
-        version: 3,
-        fetchedAt: DateTime.utc(2026, 9, 22, 12, 34, 56),
-        values: {'flag_bool': true, 'flag_int': 7},
-        variants: {'flag_bool': 'treated', 'anon_flag': ''},
-      );
+    etag: 'etag-abc',
+    version: 3,
+    fetchedAt: DateTime.utc(2026, 9, 22, 12, 34, 56),
+    values: {'flag_bool': true, 'flag_int': 7},
+    variants: {'flag_bool': 'treated', 'anon_flag': ''},
+  );
 
   group('CacheData model', () {
     test('toJson/fromJson round-trips all keys', () {
@@ -57,9 +57,17 @@ void main() {
     });
 
     test('wrong shapes return null; num coerced; bad date is epoch', () {
-      expect(CacheData.fromJson({'etag': 7, 'values': <String, Object?>{}}),
-          isNull);
-      expect(CacheData.fromJson({'etag': 'e', 'values': [1, 2]}), isNull);
+      expect(
+        CacheData.fromJson({'etag': 7, 'values': <String, Object?>{}}),
+        isNull,
+      );
+      expect(
+        CacheData.fromJson({
+          'etag': 'e',
+          'values': [1, 2],
+        }),
+        isNull,
+      );
       final coerced = CacheData.fromJson({
         'etag': 'e',
         'version': 2.9,
@@ -70,8 +78,10 @@ void main() {
       expect(coerced!.version, 2);
       expect(
         coerced.fetchedAt.toUtc().millisecondsSinceEpoch,
-        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true)
-            .millisecondsSinceEpoch,
+        DateTime.fromMillisecondsSinceEpoch(
+          0,
+          isUtc: true,
+        ).millisecondsSinceEpoch,
       );
     });
 

@@ -150,10 +150,9 @@ class RealtimeUpdater {
       () =>
           'realtime connect env=$env pollInterval=$pollInterval generation=$_generation',
     );
-    final effectivePoll =
-        pollInterval < const Duration(seconds: 1)
-            ? const Duration(seconds: 1)
-            : pollInterval;
+    final effectivePoll = pollInterval < const Duration(seconds: 1)
+        ? const Duration(seconds: 1)
+        : pollInterval;
     _pollTimer = Timer.periodic(effectivePoll, (_) => _pollTick());
     final gen = _generation;
     // Fire-and-forget by design: the loop records errors on status.
@@ -255,9 +254,9 @@ class RealtimeUpdater {
           ..headers['X-ConfigWire-Key'] = apiKey
           ..headers['Accept'] = 'text/event-stream';
         cwDebug(verbose, () => 'realtime stream GET start env=$env');
-        final resp = await _streamClient.send(req).timeout(
-          const Duration(seconds: 10),
-        );
+        final resp = await _streamClient
+            .send(req)
+            .timeout(const Duration(seconds: 10));
         if (!_running || _disposed) {
           try {
             await resp.stream.drain();
@@ -334,23 +333,25 @@ class RealtimeUpdater {
   Future<void> _readStream(http.StreamedResponse resp) {
     final done = Completer<void>();
     late final StreamSubscription<String> sub;
-    sub = resp.stream.transform(utf8.decoder).listen(
-      (chunk) {
-        if (!_running || _disposed) return;
-        try {
-          _ingestChunk(chunk);
-        } catch (_) {
-          // A poison chunk must never kill the stream read.
-        }
-      },
-      onError: (_) {
-        if (!done.isCompleted) done.complete();
-      },
-      onDone: () {
-        if (!done.isCompleted) done.complete();
-      },
-      cancelOnError: false,
-    );
+    sub = resp.stream
+        .transform(utf8.decoder)
+        .listen(
+          (chunk) {
+            if (!_running || _disposed) return;
+            try {
+              _ingestChunk(chunk);
+            } catch (_) {
+              // A poison chunk must never kill the stream read.
+            }
+          },
+          onError: (_) {
+            if (!done.isCompleted) done.complete();
+          },
+          onDone: () {
+            if (!done.isCompleted) done.complete();
+          },
+          cancelOnError: false,
+        );
     _streamSub = sub;
     _pendingReadDone = done;
     return done.future.whenComplete(() {

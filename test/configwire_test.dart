@@ -1,5 +1,6 @@
 @TestOn('vm')
 library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -14,7 +15,10 @@ import 'package:test/test.dart';
 /// Each test gets a FRESH in-memory store (MemoryCacheStore) so no test
 /// observes another's persisted state (stale-cache discipline).
 void main() {
-  Future<ConfigWire> clientWith(MockClient mock, {Map<String, Object?> defaults = const {}}) async {
+  Future<ConfigWire> clientWith(
+    MockClient mock, {
+    Map<String, Object?> defaults = const {},
+  }) async {
     return ConfigWire(
       apiKey: 'test-key',
       env: 'dev',
@@ -27,7 +31,12 @@ void main() {
     );
   }
 
-  String fetch200({String etag = 'abc123', int version = 1, Map<String, Object?>? values, Map<String, String>? variants}) {
+  String fetch200({
+    String etag = 'abc123',
+    int version = 1,
+    Map<String, Object?>? values,
+    Map<String, String>? variants,
+  }) {
     return jsonEncode({
       'version': version,
       'etag': etag,
@@ -108,23 +117,33 @@ void main() {
       expect(client.get<int>('missing', fallback: 42), equals(42));
     });
 
-    test('server List<dynamic> misses get<List<String>> (use getList)', () async {
-      final mock = MockClient((req) async {
-        if (req.method == 'POST') {
-          return http.Response('{"accepted":1,"status":202}', 202);
-        }
-        return http.Response(
-          fetch200(values: {'tags': ['a', 'b']}),
-          200,
+    test(
+      'server List<dynamic> misses get<List<String>> (use getList)',
+      () async {
+        final mock = MockClient((req) async {
+          if (req.method == 'POST') {
+            return http.Response('{"accepted":1,"status":202}', 202);
+          }
+          return http.Response(
+            fetch200(
+              values: {
+                'tags': ['a', 'b'],
+              },
+            ),
+            200,
+          );
+        });
+        final client = await clientWith(mock);
+        addTearDown(client.dispose);
+        expect(await client.fetchAndActivate(), isTrue);
+        // jsonDecode yields List<dynamic>: `is List<String>` is false.
+        expect(
+          client.get<List<String>>('tags', fallback: const ['fb']),
+          equals(['fb']),
         );
-      });
-      final client = await clientWith(mock);
-      addTearDown(client.dispose);
-      expect(await client.fetchAndActivate(), isTrue);
-      // jsonDecode yields List<dynamic>: `is List<String>` is false.
-      expect(client.get<List<String>>('tags', fallback: const ['fb']), equals(['fb']));
-      expect(client.getList<String>('tags'), equals(['a', 'b']));
-    });
+        expect(client.getList<String>('tags'), equals(['a', 'b']));
+      },
+    );
 
     test('returns defensive copies of collections', () async {
       final client = await clientWith(
@@ -166,7 +185,11 @@ void main() {
           return http.Response('{"accepted":1,"status":202}', 202);
         }
         return http.Response(
-          fetch200(values: {'tags': ['a', 'b']}),
+          fetch200(
+            values: {
+              'tags': ['a', 'b'],
+            },
+          ),
           200,
         );
       });
@@ -214,8 +237,14 @@ void main() {
         },
       );
       addTearDown(client.dispose);
-      expect(() => client.getList<String>('mixed', fallback: null), throwsStateError);
-      expect(() => client.getList<String>('missing', fallback: null), throwsStateError);
+      expect(
+        () => client.getList<String>('mixed', fallback: null),
+        throwsStateError,
+      );
+      expect(
+        () => client.getList<String>('missing', fallback: null),
+        throwsStateError,
+      );
     });
 
     test('returns a copy: mutating the result keeps the live view', () async {
@@ -254,9 +283,11 @@ void main() {
           return http.Response('{"accepted":1,"status":202}', 202);
         }
         return http.Response(
-          fetch200(values: {
-            'cfg': {'a': 1, 'b': 2},
-          }),
+          fetch200(
+            values: {
+              'cfg': {'a': 1, 'b': 2},
+            },
+          ),
           200,
         );
       });
@@ -277,27 +308,28 @@ void main() {
       expect(client.getMap<double>('cfg'), equals({'a': 1.0}));
     });
 
-    test('missing key, mistyped value, and non-String keys return fallback', () async {
-      final client = await clientWith(
-        MockClient((_) async => http.Response('{}', 500)),
-        defaults: {
-          'mixed': {'a': 'x', 'b': 1},
-          'not_a_map': 'nope',
-          'weird': {
-            1: 'x',
+    test(
+      'missing key, mistyped value, and non-String keys return fallback',
+      () async {
+        final client = await clientWith(
+          MockClient((_) async => http.Response('{}', 500)),
+          defaults: {
+            'mixed': {'a': 'x', 'b': 1},
+            'not_a_map': 'nope',
+            'weird': {1: 'x'},
           },
-        },
-      );
-      addTearDown(client.dispose);
-      expect(client.getMap<int>('missing'), isEmpty);
-      expect(client.getMap<int>('mixed'), isEmpty);
-      expect(client.getMap<int>('not_a_map'), isEmpty);
-      expect(client.getMap<String>('weird'), isEmpty);
-      expect(
-        client.getMap<int>('mixed', fallback: const {'fb': 1}),
-        equals({'fb': 1}),
-      );
-    });
+        );
+        addTearDown(client.dispose);
+        expect(client.getMap<int>('missing'), isEmpty);
+        expect(client.getMap<int>('mixed'), isEmpty);
+        expect(client.getMap<int>('not_a_map'), isEmpty);
+        expect(client.getMap<String>('weird'), isEmpty);
+        expect(
+          client.getMap<int>('mixed', fallback: const {'fb': 1}),
+          equals({'fb': 1}),
+        );
+      },
+    );
 
     test('fallback null rethrows', () async {
       final client = await clientWith(
@@ -307,8 +339,14 @@ void main() {
         },
       );
       addTearDown(client.dispose);
-      expect(() => client.getMap<int>('mixed', fallback: null), throwsStateError);
-      expect(() => client.getMap<int>('missing', fallback: null), throwsStateError);
+      expect(
+        () => client.getMap<int>('mixed', fallback: null),
+        throwsStateError,
+      );
+      expect(
+        () => client.getMap<int>('missing', fallback: null),
+        throwsStateError,
+      );
     });
 
     test('returns a copy: mutating the result keeps the live view', () async {
@@ -389,9 +427,11 @@ void main() {
           return http.Response('{"accepted":1,"status":202}', 202);
         }
         return http.Response(
-          fetch200(values: {
-            'mix': [1, 'a'],
-          }),
+          fetch200(
+            values: {
+              'mix': [1, 'a'],
+            },
+          ),
           200,
         );
       });
@@ -409,11 +449,13 @@ void main() {
           return http.Response('{"accepted":1,"status":202}', 202);
         }
         return http.Response(
-          fetch200(values: {
-            'rows': [
-              {'a': 1},
-            ],
-          }),
+          fetch200(
+            values: {
+              'rows': [
+                {'a': 1},
+              ],
+            },
+          ),
           200,
         );
       });
@@ -434,26 +476,32 @@ void main() {
         },
       );
       addTearDown(client.dispose);
-      expect(client.getMap<Object>('mix'), equals({'a': 1, 'b': 'x', 'c': true}));
+      expect(
+        client.getMap<Object>('mix'),
+        equals({'a': 1, 'b': 'x', 'c': true}),
+      );
       expect(client.getMap<int>('mix'), isEmpty);
       expect(client.getMap<String>('mix'), isEmpty);
       expect(client.getMap<bool>('mix'), isEmpty);
       expect(client.getMap<num>('mix'), isEmpty);
     });
 
-    test('int+double map values: num accepts, double coerces, int rejects', () async {
-      final client = await clientWith(
-        MockClient((_) async => http.Response('{}', 500)),
-        defaults: {
-          'nums': {'a': 1, 'b': 2.5},
-        },
-      );
-      addTearDown(client.dispose);
-      expect(client.getMap<num>('nums'), equals({'a': 1, 'b': 2.5}));
-      expect(client.getMap<double>('nums'), equals({'a': 1.0, 'b': 2.5}));
-      expect(client.getMap<int>('nums'), isEmpty);
-      expect(client.getMap<String>('nums'), isEmpty);
-    });
+    test(
+      'int+double map values: num accepts, double coerces, int rejects',
+      () async {
+        final client = await clientWith(
+          MockClient((_) async => http.Response('{}', 500)),
+          defaults: {
+            'nums': {'a': 1, 'b': 2.5},
+          },
+        );
+        addTearDown(client.dispose);
+        expect(client.getMap<num>('nums'), equals({'a': 1, 'b': 2.5}));
+        expect(client.getMap<double>('nums'), equals({'a': 1.0, 'b': 2.5}));
+        expect(client.getMap<int>('nums'), isEmpty);
+        expect(client.getMap<String>('nums'), isEmpty);
+      },
+    );
 
     test('null map values: strict T rejects, nullable T accepts', () async {
       final client = await clientWith(
@@ -473,9 +521,11 @@ void main() {
           return http.Response('{"accepted":1,"status":202}', 202);
         }
         return http.Response(
-          fetch200(values: {
-            'cfg': {'a': 1, 'b': 'x'},
-          }),
+          fetch200(
+            values: {
+              'cfg': {'a': 1, 'b': 'x'},
+            },
+          ),
           200,
         );
       });
@@ -489,58 +539,64 @@ void main() {
   });
 
   group('fetch contract', () {
-    test('200-update: values replaced, etag stored, store doc has all five keys', () async {
-      String? postedBody;
-      final mock = MockClient((req) async {
-        if (req.method == 'POST') {
-          postedBody = req.body;
-          return http.Response('{"accepted":1,"status":202}', 202);
-        }
-        expect(req.headers['X-ConfigWire-Key'], equals('test-key'));
-        return http.Response(
-          fetch200(values: {'flag_bool': false, 'flag_str': 'live'}),
-          200,
-          headers: {'ETag': 'abc123'},
+    test(
+      '200-update: values replaced, etag stored, store doc has all five keys',
+      () async {
+        String? postedBody;
+        final mock = MockClient((req) async {
+          if (req.method == 'POST') {
+            postedBody = req.body;
+            return http.Response('{"accepted":1,"status":202}', 202);
+          }
+          expect(req.headers['X-ConfigWire-Key'], equals('test-key'));
+          return http.Response(
+            fetch200(values: {'flag_bool': false, 'flag_str': 'live'}),
+            200,
+            headers: {'ETag': 'abc123'},
+          );
+        });
+        final store = MemoryCacheStore();
+        final client = ConfigWire(
+          apiKey: 'test-key',
+          env: 'dev',
+          baseUrl: 'http://localhost:8090',
+          defaults: {'flag_bool': true},
+          client: mock,
+          store: store,
+          minimumFetchInterval: Duration.zero,
         );
-      });
-      final store = MemoryCacheStore();
-      final client = ConfigWire(
-        apiKey: 'test-key',
-        env: 'dev',
-        baseUrl: 'http://localhost:8090',
-        defaults: {'flag_bool': true},
-        client: mock,
-        store: store,
-        minimumFetchInterval: Duration.zero,
-      );
-      addTearDown(client.dispose);
+        addTearDown(client.dispose);
 
-      expect(await client.fetchAndActivate(), isTrue);
-      expect(client.lastFetchStatus, equals(FetchStatus.success));
-      expect(client.fetchTime, isNotNull);
-      expect(client.getBool('flag_bool'), isFalse);
-      expect(client.getString('flag_str'), equals('live'));
-      expect(client.etag, equals('abc123'));
-      expect(client.version, equals(1));
+        expect(await client.fetchAndActivate(), isTrue);
+        expect(client.lastFetchStatus, equals(FetchStatus.success));
+        expect(client.fetchTime, isNotNull);
+        expect(client.getBool('flag_bool'), isFalse);
+        expect(client.getString('flag_str'), equals('live'));
+        expect(client.etag, equals('abc123'));
+        expect(client.version, equals(1));
 
-      // Store doc holds all five keys (incl. variants).
-      final saved = await store.load();
-      expect(saved, isNotNull);
-      final onDisk = saved!.toJson();
-      expect(onDisk.keys.toSet(), equals({'etag', 'version', 'fetchedAt', 'values', 'variants'}));
-      expect(onDisk['etag'], equals('abc123'));
-      expect(onDisk['version'], equals(1));
-      expect((onDisk['values'] as Map)['flag_bool'], isFalse);
+        // Store doc holds all five keys (incl. variants).
+        final saved = await store.load();
+        expect(saved, isNotNull);
+        final onDisk = saved!.toJson();
+        expect(
+          onDisk.keys.toSet(),
+          equals({'etag', 'version', 'fetchedAt', 'values', 'variants'}),
+        );
+        expect(onDisk['etag'], equals('abc123'));
+        expect(onDisk['version'], equals(1));
+        expect((onDisk['values'] as Map)['flag_bool'], isFalse);
 
-      // Fetch event posted best-effort with hashed user (anonymous -> "").
-      expect(postedBody, isNotNull);
-      final body = jsonDecode(postedBody!) as Map;
-      final ev = (body['events'] as List).single as Map;
-      expect(ev['kind'], equals('fetch'));
-      expect(ev['flag'], equals(''));
-      expect(ev['userHash'], equals(''));
-      expect(ev['version'], equals(1));
-    });
+        // Fetch event posted best-effort with hashed user (anonymous -> "").
+        expect(postedBody, isNotNull);
+        final body = jsonDecode(postedBody!) as Map;
+        final ev = (body['events'] as List).single as Map;
+        expect(ev['kind'], equals('fetch'));
+        expect(ev['flag'], equals(''));
+        expect(ev['userHash'], equals(''));
+        expect(ev['version'], equals(1));
+      },
+    );
 
     test('304-keep: cached values retained, returns false', () async {
       var calls = 0;
@@ -563,56 +619,72 @@ void main() {
       expect(client.etag, equals('etag-1'));
     });
 
-    test('offline-cache: network failure keeps stale cache, no throw', () async {
-      // Seed the cache with one good fetch, then go offline. Both
-      // clients share one in-memory store (the seeder persists, the
-      // offline client re-reads).
-      final seed = MockClient((req) async {
-        if (req.method == 'POST') {
-          return http.Response('{"accepted":1,"status":202}', 202);
-        }
-        return http.Response(fetch200(values: {'flag_str': 'cached-live'}), 200);
-      });
-      final store = MemoryCacheStore();
-      final seeder = ConfigWire(
-        apiKey: 'test-key',
-        env: 'dev',
-        baseUrl: 'http://localhost:8090',
-        client: seed,
-        store: store,
-        minimumFetchInterval: Duration.zero,
-      );
-      addTearDown(seeder.dispose);
-      expect(await seeder.fetchAndActivate(), isTrue);
+    test(
+      'offline-cache: network failure keeps stale cache, no throw',
+      () async {
+        // Seed the cache with one good fetch, then go offline. Both
+        // clients share one in-memory store (the seeder persists, the
+        // offline client re-reads).
+        final seed = MockClient((req) async {
+          if (req.method == 'POST') {
+            return http.Response('{"accepted":1,"status":202}', 202);
+          }
+          return http.Response(
+            fetch200(values: {'flag_str': 'cached-live'}),
+            200,
+          );
+        });
+        final store = MemoryCacheStore();
+        final seeder = ConfigWire(
+          apiKey: 'test-key',
+          env: 'dev',
+          baseUrl: 'http://localhost:8090',
+          client: seed,
+          store: store,
+          minimumFetchInterval: Duration.zero,
+        );
+        addTearDown(seeder.dispose);
+        expect(await seeder.fetchAndActivate(), isTrue);
 
-      final offline = MockClient((_) async => throw const SocketException('down'));
-      final client = ConfigWire(
-        apiKey: 'test-key',
-        env: 'dev',
-        baseUrl: 'http://localhost:8090',
-        client: offline,
-        store: store,
-        minimumFetchInterval: Duration.zero,
-      );
-      addTearDown(client.dispose);
-      await client.ensureInitialized();
-      // ensureInitialized already attempted (and failed) a fetch; a direct
-      // retry must also fail soft.
-      expect(await client.fetchAndActivate(), isFalse);
-      expect(client.lastFetchStatus, equals(FetchStatus.error));
-      expect(client.getString('flag_str'), equals('cached-live'));
-    });
+        final offline = MockClient(
+          (_) async => throw const SocketException('down'),
+        );
+        final client = ConfigWire(
+          apiKey: 'test-key',
+          env: 'dev',
+          baseUrl: 'http://localhost:8090',
+          client: offline,
+          store: store,
+          minimumFetchInterval: Duration.zero,
+        );
+        addTearDown(client.dispose);
+        await client.ensureInitialized();
+        // ensureInitialized already attempted (and failed) a fetch; a direct
+        // retry must also fail soft.
+        expect(await client.fetchAndActivate(), isFalse);
+        expect(client.lastFetchStatus, equals(FetchStatus.error));
+        expect(client.getString('flag_str'), equals('cached-live'));
+      },
+    );
 
-    test('cold-defaults: offline with no cache serves in-app defaults, no throw', () async {
-      final offline = MockClient((_) async => throw const SocketException('down'));
-      final client = await clientWith(offline, defaults: {'welcome': 'hello', 'enabled': true});
-      addTearDown(client.dispose);
-      await client.ensureInitialized();
-      expect(client.lastFetchStatus, equals(FetchStatus.error));
-      expect(client.getString('welcome'), equals('hello'));
-      expect(client.getBool('enabled'), isTrue);
-      expect(client.fetchTime, isNull);
-    });
+    test(
+      'cold-defaults: offline with no cache serves in-app defaults, no throw',
+      () async {
+        final offline = MockClient(
+          (_) async => throw const SocketException('down'),
+        );
+        final client = await clientWith(
+          offline,
+          defaults: {'welcome': 'hello', 'enabled': true},
+        );
+        addTearDown(client.dispose);
+        await client.ensureInitialized();
+        expect(client.lastFetchStatus, equals(FetchStatus.error));
+        expect(client.getString('welcome'), equals('hello'));
+        expect(client.getBool('enabled'), isTrue);
+        expect(client.fetchTime, isNull);
+      },
+    );
 
     test('type-mismatch-fallback: wrong-typed live value falls back', () async {
       final mock = MockClient((req) async {
@@ -631,29 +703,32 @@ void main() {
       expect(client.getInt('flag_int'), equals(42));
     });
 
-    test('throttle-skip: second immediate fetch returns false with throttled status', () async {
-      var gets = 0;
-      final mock = MockClient((req) async {
-        if (req.method == 'POST') {
-          return http.Response('{"accepted":1,"status":202}', 202);
-        }
-        gets++;
-        return http.Response(fetch200(), 200);
-      });
-      final client = ConfigWire(
-        apiKey: 'test-key',
-        env: 'dev',
-        baseUrl: 'http://localhost:8090',
-        client: mock,
-        store: MemoryCacheStore(),
-        minimumFetchInterval: const Duration(hours: 12),
-      );
-      addTearDown(client.dispose);
-      expect(await client.fetchAndActivate(), isTrue);
-      expect(await client.fetchAndActivate(), isFalse);
-      expect(client.lastFetchStatus, equals(FetchStatus.throttled));
-      expect(gets, equals(1));
-    });
+    test(
+      'throttle-skip: second immediate fetch returns false with throttled status',
+      () async {
+        var gets = 0;
+        final mock = MockClient((req) async {
+          if (req.method == 'POST') {
+            return http.Response('{"accepted":1,"status":202}', 202);
+          }
+          gets++;
+          return http.Response(fetch200(), 200);
+        });
+        final client = ConfigWire(
+          apiKey: 'test-key',
+          env: 'dev',
+          baseUrl: 'http://localhost:8090',
+          client: mock,
+          store: MemoryCacheStore(),
+          minimumFetchInterval: const Duration(hours: 12),
+        );
+        addTearDown(client.dispose);
+        expect(await client.fetchAndActivate(), isTrue);
+        expect(await client.fetchAndActivate(), isFalse);
+        expect(client.lastFetchStatus, equals(FetchStatus.throttled));
+        expect(gets, equals(1));
+      },
+    );
 
     test('minimumFetchInterval zero disables throttling (dev mode)', () async {
       var gets = 0;
@@ -680,7 +755,8 @@ void main() {
           return http.Response('{"accepted":1,"status":202}', 202);
         }
         calls++;
-        if (calls == 1) return http.Response(fetch200(values: {'k': 'good'}), 200);
+        if (calls == 1)
+          return http.Response(fetch200(values: {'k': 'good'}), 200);
         return http.Response('this is not json{{{', 200);
       });
       final client = await clientWith(mock);
@@ -698,7 +774,8 @@ void main() {
           return http.Response('{"accepted":1,"status":202}', 202);
         }
         calls++;
-        if (calls == 1) return http.Response(fetch200(values: {'k': 'good'}), 200);
+        if (calls == 1)
+          return http.Response(fetch200(values: {'k': 'good'}), 200);
         return http.Response('boom', 500);
       });
       final client = await clientWith(mock);
@@ -709,44 +786,53 @@ void main() {
       expect(client.getString('k'), equals('good'));
     });
 
-    test('fetchTimeout honored: hanging server maps to error, no throw', () async {
-      final hanging = MockClient((_) async {
-        await Future<void>.delayed(const Duration(seconds: 30));
-        return http.Response(fetch200(), 200);
-      });
-      final client = ConfigWire(
-        apiKey: 'test-key',
-        env: 'dev',
-        baseUrl: 'http://localhost:8090',
-        defaults: {'d': 'default'},
-        client: hanging,
-        store: MemoryCacheStore(),
-        minimumFetchInterval: Duration.zero,
-        fetchTimeout: const Duration(milliseconds: 200),
-      );
-      addTearDown(client.dispose);
-      expect(await client.fetchAndActivate(), isFalse);
-      expect(client.lastFetchStatus, equals(FetchStatus.error));
-      expect(client.getString('d'), equals('default'));
-    });
+    test(
+      'fetchTimeout honored: hanging server maps to error, no throw',
+      () async {
+        final hanging = MockClient((_) async {
+          await Future<void>.delayed(const Duration(seconds: 30));
+          return http.Response(fetch200(), 200);
+        });
+        final client = ConfigWire(
+          apiKey: 'test-key',
+          env: 'dev',
+          baseUrl: 'http://localhost:8090',
+          defaults: {'d': 'default'},
+          client: hanging,
+          store: MemoryCacheStore(),
+          minimumFetchInterval: Duration.zero,
+          fetchTimeout: const Duration(milliseconds: 200),
+        );
+        addTearDown(client.dispose);
+        expect(await client.fetchAndActivate(), isFalse);
+        expect(client.lastFetchStatus, equals(FetchStatus.error));
+        expect(client.getString('d'), equals('default'));
+      },
+    );
 
-    test('concurrent fetchAndActivate x2: both complete, values consistent (last-wins)', () async {
-      final mock = MockClient((req) async {
-        if (req.method == 'POST') {
-          return http.Response('{"accepted":1,"status":202}', 202);
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-        return http.Response(fetch200(values: {'k': 'v'}), 200);
-      });
-      final client = await clientWith(mock);
-      addTearDown(client.dispose);
-      final results = await Future.wait([client.fetchAndActivate(), client.fetchAndActivate()]);
-      // No lock: both run to completion; last-completes-wins. Either
-      // [true, true] (both 200) — never a throw, never torn state.
-      expect(results, equals([true, true]));
-      expect(client.getString('k'), equals('v'));
-      expect(client.lastFetchStatus, equals(FetchStatus.success));
-    });
+    test(
+      'concurrent fetchAndActivate x2: both complete, values consistent (last-wins)',
+      () async {
+        final mock = MockClient((req) async {
+          if (req.method == 'POST') {
+            return http.Response('{"accepted":1,"status":202}', 202);
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          return http.Response(fetch200(values: {'k': 'v'}), 200);
+        });
+        final client = await clientWith(mock);
+        addTearDown(client.dispose);
+        final results = await Future.wait([
+          client.fetchAndActivate(),
+          client.fetchAndActivate(),
+        ]);
+        // No lock: both run to completion; last-completes-wins. Either
+        // [true, true] (both 200) — never a throw, never torn state.
+        expect(results, equals([true, true]));
+        expect(client.getString('k'), equals('v'));
+        expect(client.lastFetchStatus, equals(FetchStatus.success));
+      },
+    );
 
     test('anonymous "" variant omitted from every variant view', () async {
       final mock = MockClient((req) async {
@@ -775,7 +861,8 @@ void main() {
       String? gotHash;
       final mock = MockClient((req) async {
         if (req.method == 'POST') {
-          gotHash = (jsonDecode(req.body) as Map)['events'][0]['userHash'] as String?;
+          gotHash =
+              (jsonDecode(req.body) as Map)['events'][0]['userHash'] as String?;
           return http.Response('{"accepted":1,"status":202}', 202);
         }
         gotUid = req.url.queryParameters['uid'];

@@ -271,7 +271,9 @@ class ConfigWire {
           } else if (e is int && T == double) {
             out.add(e.toDouble() as T);
           } else {
-            throw StateError('getList($key): element ${e.runtimeType} is not $T');
+            throw StateError(
+              'getList($key): element ${e.runtimeType} is not $T',
+            );
           }
         }
         return out;
@@ -304,7 +306,9 @@ class ConfigWire {
         final out = <String, T>{};
         for (final e in v.entries) {
           if (e.key is! String) {
-            throw StateError('getMap($key): key ${e.key.runtimeType} is not String');
+            throw StateError(
+              'getMap($key): key ${e.key.runtimeType} is not String',
+            );
           }
           final k = e.key as String;
           final val = e.value;
@@ -313,7 +317,9 @@ class ConfigWire {
           } else if (val is int && T == double) {
             out[k] = val.toDouble() as T;
           } else {
-            throw StateError('getMap($key): value of "$k" is ${val.runtimeType}, not $T');
+            throw StateError(
+              'getMap($key): value of "$k" is ${val.runtimeType}, not $T',
+            );
           }
         }
         return out;
@@ -358,13 +364,15 @@ class ConfigWire {
   Future<void> ensureInitialized() async {
     cwDebug(
       verbose,
-      () => 'ensureInitialized start env=$env '
+      () =>
+          'ensureInitialized start env=$env '
           'initialized=$_initialized',
     );
     if (_initialized) {
       cwDebug(
         verbose,
-        () => 'ensureInitialized complete (already initialized) env=$env '
+        () =>
+            'ensureInitialized complete (already initialized) env=$env '
             'status=$_lastFetchStatus',
       );
       return;
@@ -374,7 +382,8 @@ class ConfigWire {
       await inFlight;
       cwDebug(
         verbose,
-        () => 'ensureInitialized complete (joined in-flight) env=$env '
+        () =>
+            'ensureInitialized complete (joined in-flight) env=$env '
             'status=$_lastFetchStatus',
       );
       return;
@@ -411,7 +420,8 @@ class ConfigWire {
       final hit = cached;
       cwDebug(
         verbose,
-        () => 'cache hit values=${hit.values.length} keys '
+        () =>
+            'cache hit values=${hit.values.length} keys '
             'version=${hit.version} etag=${hit.etag}',
       );
       _applyServerValues(
@@ -453,9 +463,7 @@ class ConfigWire {
   /// replace or [updateTargeting] for a single-field merge, then fetch:
   /// `cw.setTargeting(const Targeting(userId: 'u')); await cw.fetchAndActivate();`
   /// `cw.updateTargeting(platform: 'ios'); await cw.fetchAndActivate();`
-  Future<bool> fetchAndActivate({
-    bool force = false,
-  }) async {
+  Future<bool> fetchAndActivate({bool force = false}) async {
     final now = DateTime.now().toUtc();
     if (!force &&
         minimumFetchInterval > Duration.zero &&
@@ -477,7 +485,8 @@ class ConfigWire {
       }
       cwDebug(
         verbose,
-        () => 'fetch start env=$env hasEtag=${_etag != null && _etag!.isNotEmpty}',
+        () =>
+            'fetch start env=$env hasEtag=${_etag != null && _etag!.isNotEmpty}',
       );
       final resp = await client
           .get(uri, headers: headers)
@@ -491,10 +500,7 @@ class ConfigWire {
       }
       if (resp.statusCode != 200) {
         final status = resp.statusCode;
-        cwDebug(
-          verbose,
-          () => 'fetch non-200 status=$status env=$env',
-        );
+        cwDebug(verbose, () => 'fetch non-200 status=$status env=$env');
         _lastFetchStatus = FetchStatus.error;
         return false;
       }
@@ -519,7 +525,8 @@ class ConfigWire {
       _lastFetchStatus = FetchStatus.success;
       cwDebug(
         verbose,
-        () => 'fetch 200 version=${parsed.version} etag=${parsed.etag} '
+        () =>
+            'fetch 200 version=${parsed.version} etag=${parsed.etag} '
             'keys=${parsed.values.length}',
       );
 
@@ -584,7 +591,8 @@ class ConfigWire {
   }) {
     cwDebug(
       verbose,
-      () => 'apply version=$version etag=$etag keys=${values.length} '
+      () =>
+          'apply version=$version etag=$etag keys=${values.length} '
           'variants=${variants.length}',
     );
     _values

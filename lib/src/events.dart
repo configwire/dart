@@ -73,9 +73,7 @@ Future<void> postFetchEvent({
     // Intentionally swallowed: analytics must never break fetching.
     // REDACT: never surface the SDK key in logs.
     final raw = '$e';
-    final safe = apiKey.isNotEmpty
-        ? raw.replaceAll(apiKey, '<redacted>')
-        : raw;
+    final safe = apiKey.isNotEmpty ? raw.replaceAll(apiKey, '<redacted>') : raw;
     cwDebug(verbose, () => 'events POST failed env=$env error=$safe');
   }
 }

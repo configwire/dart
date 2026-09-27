@@ -1,5 +1,6 @@
 @TestOn('vm')
 library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -132,9 +133,7 @@ void main() {
           fetchMock(body: fetch200(), gets: gets),
           'http://127.0.0.1:${server.port}',
         );
-        await client.connectRealtime(
-          pollInterval: const Duration(minutes: 10),
-        );
+        await client.connectRealtime(pollInterval: const Duration(minutes: 10));
 
         final snap = await client.onUpdate.first.timeout(
           const Duration(seconds: 10),
@@ -180,8 +179,7 @@ void main() {
         expect(gets.isNotEmpty, isTrue);
         // The stream side surfaced an error status (connection refused)
         // instead of throwing out of connect.
-        final deadline =
-            DateTime.now().add(const Duration(seconds: 10));
+        final deadline = DateTime.now().add(const Duration(seconds: 10));
         while (client.realtime?.lastError == null &&
             DateTime.now().isBefore(deadline)) {
           await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -221,9 +219,7 @@ void main() {
         final seen = <Map<String, Object?>>[];
         final sub = client.onUpdate.listen(seen.add);
         addTearDown(sub.cancel);
-        await client.connectRealtime(
-          pollInterval: const Duration(minutes: 10),
-        );
+        await client.connectRealtime(pollInterval: const Duration(minutes: 10));
 
         final snap = await client.onUpdate.first.timeout(
           const Duration(seconds: 10),
@@ -253,12 +249,9 @@ void main() {
           'http://127.0.0.1:${server.port}',
         );
         // Must not throw despite the 401 stream.
-        await client.connectRealtime(
-          pollInterval: const Duration(minutes: 10),
-        );
+        await client.connectRealtime(pollInterval: const Duration(minutes: 10));
 
-        final deadline =
-            DateTime.now().add(const Duration(seconds: 10));
+        final deadline = DateTime.now().add(const Duration(seconds: 10));
         while (client.realtime?.status != RealtimeStatus.error &&
             DateTime.now().isBefore(deadline)) {
           await Future<void>.delayed(const Duration(milliseconds: 50));

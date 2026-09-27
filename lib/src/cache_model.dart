@@ -39,12 +39,12 @@ class CacheData {
   final Map<String, String> variants;
 
   Map<String, Object?> toJson() => {
-        'etag': etag,
-        'version': version,
-        'fetchedAt': fetchedAt.toUtc().toIso8601String(),
-        'values': values,
-        'variants': variants,
-      };
+    'etag': etag,
+    'version': version,
+    'fetchedAt': fetchedAt.toUtc().toIso8601String(),
+    'values': values,
+    'variants': variants,
+  };
 
   static CacheData? fromJson(Map<String, Object?> json) {
     final etag = json['etag'];
@@ -55,7 +55,8 @@ class CacheData {
     final v = version is int ? version : (version is num ? version.toInt() : 0);
     DateTime at;
     if (fetchedAt is String) {
-      at = DateTime.tryParse(fetchedAt) ??
+      at =
+          DateTime.tryParse(fetchedAt) ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
     } else {
       at = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);

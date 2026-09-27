@@ -12,7 +12,8 @@ import 'package:configwire/configwire.dart';
 ///   CW_BASE_URL=http://127.0.0.1:8102 CW_API_KEY=`<sdk-key>` CW_ENV=dev \
 ///     CW_LIVE=1 dart run example/main.dart
 Future<void> main() async {
-  final baseUrl = Platform.environment['CW_BASE_URL'] ?? 'http://localhost:8090';
+  final baseUrl =
+      Platform.environment['CW_BASE_URL'] ?? 'http://localhost:8090';
   final apiKey = Platform.environment['CW_API_KEY'] ?? 'demo-key';
   final env = Platform.environment['CW_ENV'] ?? 'dev';
   final live = Platform.environment['CW_LIVE'] == '1';
@@ -34,9 +35,7 @@ Future<void> main() async {
     // Sticky targeting: sent as fetch query params (?uid=, ?platform=,
     // ?appVersion=, ?locale=, ?country=, ?attrs=) so the server can
     // evaluate `rules` per fetch. Empty fields are omitted (anonymous).
-    cw.setTargeting(
-      const Targeting(userId: 'user-7', platform: 'ios'),
-    );
+    cw.setTargeting(const Targeting(userId: 'user-7', platform: 'ios'));
     await cw.fetchAndActivate();
     // NOTE: values printed, apiKey never printed.
     // ignore: avoid_print
@@ -55,7 +54,7 @@ Future<void> main() async {
 // ignore: unused_element
 class _JsonFileStore implements CacheStore {
   _JsonFileStore({required this.env, String? dir})
-      : _file = File('${dir ?? '.configwire-cache'}/cache_$env.json');
+    : _file = File('${dir ?? '.configwire-cache'}/cache_$env.json');
 
   final String env;
   final File _file;

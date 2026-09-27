@@ -1,10 +1,12 @@
 name: ci
 
 on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+  # push:
+  #   branches: ["main"]
+  # pull_request:
+  #   branches: ["main"]
+  # Run locally in `scripts/push-dart.sh`
+  workflow_dispatch:
 
 jobs:
   dart:

@@ -755,8 +755,9 @@ void main() {
           return http.Response('{"accepted":1,"status":202}', 202);
         }
         calls++;
-        if (calls == 1)
+        if (calls == 1) {
           return http.Response(fetch200(values: {'k': 'good'}), 200);
+        }
         return http.Response('this is not json{{{', 200);
       });
       final client = await clientWith(mock);
@@ -774,8 +775,9 @@ void main() {
           return http.Response('{"accepted":1,"status":202}', 202);
         }
         calls++;
-        if (calls == 1)
+        if (calls == 1) {
           return http.Response(fetch200(values: {'k': 'good'}), 200);
+        }
         return http.Response('boom', 500);
       });
       final client = await clientWith(mock);

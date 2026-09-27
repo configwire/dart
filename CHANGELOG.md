@@ -1,6 +1,6 @@
-## Unreleased
+## 0.1.0
 
-### 0.0.6
+### Changed
 - **Breaking:** `TargetingContext` is renamed to `Targeting`
   (`lib/src/targeting.dart`, still exported from
   `package:configwire/configwire.dart`). Targeting inputs live in exactly

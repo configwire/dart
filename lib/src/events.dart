@@ -11,17 +11,20 @@ import 'cw_logger.dart';
 /// After a successful 200 fetch the SDK reports one analytics event:
 ///
 /// ```json
-/// {"events":[{"kind":"fetch","flag":"","variant":"",
+/// {"events":[{"kind":"fetch","variant":"",
 ///             "userHash":"<sha256hex16(userId)>","version":1}]}
 /// ```
 ///
-/// `flag` is always `""` (a fetch is env-wide, not per-flag); `variant`
-/// is `""` here because the variants map has no `""` key
-/// (`variants[""] ?? ""`). `version` is the fetched release version so
-/// stats can break fetches down per version. The server stores
-/// unknown/empty flag keys with the relation unset while preserving
-/// kind/variant/userHash/version, so this single aggregate event is
-/// safe to send.
+/// Analytics are env-wide: the canonical event shape carries
+/// kind/variant/userHash/version only. `variant` is `""` here because
+/// the variants map has no `""` key (`variants[""] ?? ""`). `version`
+/// is the fetched release version so stats can break fetches down
+/// per version.
+///
+/// Deprecated `flag` compatibility: the POST body still sends
+/// `'flag': ''` (see below) so payloads validate against pre-removal
+/// servers; new servers ignore it. Do not add per-flag keys —
+/// analytics are never broken down by flag.
 ///
 /// Fire-and-forget: every failure mode (network, timeout, non-2xx,
 /// malformed baseUrl) is swallowed and the future always completes
@@ -46,6 +49,9 @@ Future<void> postFetchEvent({
       'events': [
         {
           'kind': 'fetch',
+          // Deprecated: env-wide analytics have no per-flag breakdown.
+          // Sent as "" so pre-removal servers still validate the payload;
+          // new servers ignore it.
           'flag': '',
           'variant': variants[''] ?? '',
           'userHash': sha256Hex16(userId),

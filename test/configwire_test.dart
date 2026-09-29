@@ -592,6 +592,7 @@ void main() {
         final body = jsonDecode(postedBody!) as Map;
         final ev = (body['events'] as List).single as Map;
         expect(ev['kind'], equals('fetch'));
+        // Deprecated shim: sent as "" for pre-removal servers, ignored by new ones.
         expect(ev['flag'], equals(''));
         expect(ev['userHash'], equals(''));
         expect(ev['version'], equals(1));

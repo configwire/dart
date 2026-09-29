@@ -1,3 +1,13 @@
+## 0.1.1
+
+### Changed
+
+- Deprecated per-event `flag` attribution (`lib/src/events.dart`):
+  analytics are env-wide, so the fetch-event POST keeps sending
+  `'flag': ''` as a minimal backward-compat shim (pre-removal servers
+  still validate the payload; new servers ignore it). No action
+  needed; do not send per-flag keys.
+
 ## 0.1.0
 
 ### Changed

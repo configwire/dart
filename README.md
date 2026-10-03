@@ -18,7 +18,7 @@ Or pin it in your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  configwire: ^0.0.1
+  configwire: ^0.1.1
 ```
 
 Git fallback (before/while pub.dev review is pending):
@@ -79,6 +79,98 @@ final on = cw.getBool('launch_flag');
 await cw.dispose();
 ```
 
+## Reading values
+
+All reads are synchronous over the in-memory view
+(`{...defaults, ...serverValues}`). Every getter takes a fallback
+used on missing keys or type mismatches:
+
+```dart
+cw.getBool('launch_flag'); // fallback false
+cw.getString('welcome', fallback: 'hi'); // fallback ''
+cw.getInt('retries'); // fallback 0
+cw.getDouble('ratio'); // fallback 0.0, coerces int via toDouble()
+cw.get<String>('welcome');
+cw.getAll(); // copy of the live view
+```
+
+`get<T>` returns a defensive copy for maps and lists so callers
+cannot mutate the live view. It coerces `int` to `double` when
+`T` is `double`. Without a fallback it returns `null` for nullable
+`T` and throws a cast error for non-nullable `T`. Server collections
+decode as `List<dynamic>` / `Map<String, dynamic>`, so prefer the
+helpers below over a direct `get<List<String>>`.
+
+`getList<T>` and `getMap<T>` check every element eagerly and return
+copies:
+
+```dart
+cw.getList<String>('allowlist'); // fallback const []
+cw.getMap<int>('limits'); // fallback const {}
+```
+
+On any error (missing key, mistyped value, mistyped element) the
+fallback is returned. Pass `fallback: null` to rethrow instead.
+`int` elements coerce to `double` when `T` is `double`.
+
+## Variants
+
+```dart
+cw.getVariant('checkout'); // arm name, or null when none
+cw.getVariants(); // all non-anonymous arms
+```
+
+The server only sends `variants` for flags in an experiment. An
+empty-string arm means anonymous or default and is omitted from
+both views: `getVariant` returns `null` for it and `getVariants`
+skips it.
+
+## Fetch lifecycle
+
+`fetchAndActivate` returns `true` only on a 200 that replaced values.
+304, throttled skips, and every failure mode return `false` and keep
+the current view. Nothing here ever throws: network faults, timeouts,
+and malformed 200 bodies keep stale cache (or defaults when cold).
+
+```dart
+final changed = await cw.fetchAndActivate(); // default: throttled
+await cw.fetchAndActivate(force: true); // skip the throttle
+```
+
+Inspect the last attempt:
+
+```dart
+cw.lastFetchStatus; // FetchStatus none/success/cached/throttled/error
+cw.fetchTime; // last 200/304 time, or null
+cw.etag; // sent back verbatim as If-None-Match
+cw.version; // latest activated release, 0 when none
+```
+
+Throttle and timeout knobs (constructor params):
+
+- `minimumFetchInterval` defaults to 12h. Only 200/304 responses arm
+  it, so errors never block retries. `Duration.zero` disables it.
+- `fetchTimeout` defaults to 60s per config GET.
+
+Wire behavior: the stored etag goes out as `If-None-Match` and an
+unchanged server answers `304` (status `cached`). A 200 replaces the
+server layer wholesale over the defaults underlay, persists to the
+store, then posts one analytics event (see below).
+
+## Startup
+
+```dart
+await cw.ensureInitialized(); // cache load + forced fetch
+```
+
+`ensureInitialized` loads the cache into memory, then runs
+`fetchAndActivate(force: true)` so the first server refresh is never
+throttled. A loaded cache row arms the throttle. It never throws:
+a missing or corrupt cache means defaults until the fetch resolves.
+
+It is idempotent. Concurrent callers share the same in-flight init,
+and later calls return at once without reloading or refetching.
+
 ## Targeting
 
 Targeting attributes are sent as fetch query params so the server can
@@ -105,20 +197,94 @@ await cw.fetchAndActivate();
 // Single-field update without rebuilding the whole targeting:
 cw.updateTargeting(platform: 'android');
 await cw.fetchAndActivate();
+
+// Clear back to anonymous:
+cw.setTargeting(const Targeting());
+await cw.fetchAndActivate();
 ```
 
-Realtime: `cw.connectRealtime()` opens SSE plus a 15min poll fallback,
-so freshness is at most `pollInterval` plus one fetch on every path.
+Pass `targeting:` at construction to fetch as a user on the first
+call (including `ensureInitialized`):
+
+```dart
+final cw = ConfigWire(
+  apiKey: 'YOUR_SDK_KEY',
+  env: 'dev',
+  baseUrl: 'http://127.0.0.1:8090',
+  targeting: const Targeting(userId: 'user-7'),
+);
+```
+
+## Realtime
+
+```dart
+await cw.connectRealtime(); // SSE + 15min poll fallback
+cw.onUpdate.listen((values) => render(values));
+await cw.disconnectRealtime(); // required; dispose() calls it too
+```
+
+Each valid `config_update` event and each poll tick runs a forced
+fetch. `onUpdate` emits a snapshot only when that fetch is a 200
+with new values. Plain `fetchAndActivate` never emits. `onUpdate` is
+a broadcast stream, so late listeners miss earlier snapshots.
+
+Lifecycle notes:
+
+- Always pair `connectRealtime` with `disconnectRealtime` or
+  `dispose`. A forgotten connection leaks a periodic timer that
+  keeps the isolate alive, so tests never exit.
+- `connectRealtime` never throws and reconnects cleanly when called
+  twice. Bad keys and dead ports surface on status, not as throws.
+- `pollInterval` defaults to 15min and runs always, stream up or
+  down. Worst-case staleness is `pollInterval` plus one fetch.
+  Values under 1s are clamped to 1s.
+- Stream reconnects back off 1s, 2s, 4s, capped at 30s.
+- Inspect via `cw.realtime?.status`, `cw.realtime?.lastError`, and
+  `cw.realtime?.isConnected`. Raw per-event payloads
+  (`{version, etag}`) are on `cw.realtime?.notifications`.
 
 See `example/main.dart` for a runnable demo.
+
+## Analytics
+
+Every 200 fetch posts one best-effort env-wide fetch event with
+`sha256Hex16(userId)[:16]` as the identity hash (empty userId sends
+`""`). The POST is awaited with a 5s timeout but never fails the
+fetch: network faults, timeouts, and non-2xx responses are swallowed.
+
+## Logging
+
+Pass `verbose: true` for lifecycle, fetch, cache, realtime, and
+analytics debug lines via `cwDebug`. Default is silent, and logging
+never changes behavior or return values. The apiKey is sent only as
+the `X-ConfigWire-Key` header, never printed, and redacted from error
+strings.
 
 ## Cache
 
 Persistence is bring-your-own via the `CacheStore` seam: implement
-`load()`/`save()` over the backend of your choice (JSON file,
-shared_preferences, Isar, or any disk store you prefer).
+`load()`/`save()` over a pure-Dart backend of your choice (JSON file
+via `dart:io`, as in the example above, or any other disk store with
+no Flutter dependency).
 `MemoryCacheStore` is session-only (no disk) and is the default when
-`store:` is omitted.
+`store:` is omitted. Flutter-only plugins such as shared_preferences
+stay app-side: you may bridge one through `CacheStore` in your own
+app code, but the package itself takes no Flutter dependency.
+
+Cached rows are `CacheData` JSON:
+
+```json
+{"etag": "b41b62605c0df712", "version": 1,
+ "fetchedAt": "2026-09-22T00:00:00.000Z",
+ "values": {"launch_flag": true}, "variants": {"checkout": "control"}}
+```
+
+Parsing is tolerant: files without `variants` load as `{}`,
+non-string variant entries are skipped, and bad JSON or wrong shapes
+load as `null` (caller falls back to defaults, never throws). Use
+`cacheDataFromJsonString` for the same null-on-bad-input parse from a
+raw string, or `CacheData.fromJson` on a decoded map. A loaded cache
+row arms the `minimumFetchInterval` throttle.
 
 Values persist as cleartext JSON: never put tokens, secrets, or PII
 into flag values or defaults (on Web the store is additionally readable

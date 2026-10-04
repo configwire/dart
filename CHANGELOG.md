@@ -1,3 +1,11 @@
+## 0.1.2
+
+### Changed
+
+- Docs: expanded `README.md` to cover the full client surface
+  (reading values, variants, fetch lifecycle, startup, targeting,
+  realtime, analytics, logging, cache). No code change.
+
 ## 0.1.1
 
 ### Changed

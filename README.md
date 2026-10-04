@@ -18,7 +18,7 @@ Or pin it in your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  configwire: ^0.1.1
+  configwire: ^0.1.2
 ```
 
 Git fallback (before/while pub.dev review is pending):

@@ -490,10 +490,10 @@ void main() {
           },
         );
         addTearDown(client.dispose);
-      expect(client.getMap<num>('nums'), equals({'a': 1, 'b': 2.5}));
-      expect(client.getMap<double>('nums'), equals({'a': 1.0, 'b': 2.5}));
-      expect(client.getMap<int>('nums'), isNull);
-      expect(client.getMap<String>('nums'), isNull);
+        expect(client.getMap<num>('nums'), equals({'a': 1, 'b': 2.5}));
+        expect(client.getMap<double>('nums'), equals({'a': 1.0, 'b': 2.5}));
+        expect(client.getMap<int>('nums'), isNull);
+        expect(client.getMap<String>('nums'), isNull);
       },
     );
 

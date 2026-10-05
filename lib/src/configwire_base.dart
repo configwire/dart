@@ -677,9 +677,7 @@ Map<String, V> _coerceMap<V>(String key, Object? v) {
   final out = <String, V>{};
   for (final e in v.entries) {
     if (e.key is! String) {
-      throw StateError(
-        'getMap($key): key ${e.key.runtimeType} is not String',
-      );
+      throw StateError('getMap($key): key ${e.key.runtimeType} is not String');
     }
     final k = e.key as String;
     final val = e.value;

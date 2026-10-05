@@ -103,15 +103,16 @@ decode as `List<dynamic>` / `Map<String, dynamic>`, so prefer the
 helpers below over a direct `get<List<String>>`.
 
 `getList<T>` and `getMap<T>` check every element eagerly and return
-copies:
+copies (or null):
 
 ```dart
-cw.getList<String>('allowlist'); // fallback const []
-cw.getMap<int>('limits'); // fallback const {}
+cw.getList<String>('allowlist'); // List<String>? — null on any error
+cw.getMap<int>('limits'); // Map<String, int>? — null on any error
 ```
 
 On any error (missing key, mistyped value, mistyped element) the
-fallback is returned. Pass `fallback: null` to rethrow instead.
+fallback (null by default) is returned. Pass an explicit fallback to
+substitute it.
 `int` elements coerce to `double` when `T` is `double`.
 
 ## Variants

@@ -250,86 +250,34 @@ class ConfigWire {
     return fallback as T;
   }
 
-  /// Returns a copy of the list at [key] with every element of type [T].
+  /// Returns a copy of the list at [key] with every element of type [T],
+  /// or [fallback] (null by default) on any error (missing key, mistyped
+  /// value, or a mistyped element).
   ///
-  /// On any error (missing key, mistyped value, or a mistyped element)
-  /// [fallback] is returned; when [fallback] is null the error is
-  /// rethrown — mirroring the `onError` contract in the Firebase
-  /// reference (`asList`/`getList`).
-  ///
-  /// Unlike the reference (which `jsonDecode`s a string then `cast<T>()`),
-  /// values here are already decoded, so each element is checked eagerly
-  /// instead of returning a lazy cast view. Int elements are coerced via
-  /// `toDouble()` when `T` is `double` (parity with [getDouble]);
-  /// the reference is strict and would fall back there.
-  List<T> getList<T>(String key, {List<T>? fallback = const []}) {
+  /// Values here are already decoded, so each element is checked eagerly
+  /// and a copy is returned instead of a lazy cast view. Int elements
+  /// are coerced via `toDouble()` when `T` is `double` (parity with
+  /// [getDouble]).
+  List<T>? getList<T>(String key, {List<T>? fallback}) {
     try {
-      final v = _values[key] ?? _defaults[key];
-      if (v is List) {
-        if (v.isEmpty) return <T>[];
-        final out = <T>[];
-        for (final e in v) {
-          if (e is T) {
-            out.add(e);
-          } else if (e is int && T == double) {
-            out.add(e.toDouble() as T);
-          } else {
-            throw StateError(
-              'getList($key): element ${e.runtimeType} is not $T',
-            );
-          }
-        }
-        return out;
-      }
-      throw StateError('getList($key): value is ${v.runtimeType}, not List');
+      return _coerceList<T>(key, _values[key] ?? _defaults[key]);
     } catch (_) {
-      if (fallback == null) rethrow;
       return fallback;
     }
   }
 
   /// Returns a copy of the JSON object at [key] with every value of type
-  /// [T].
+  /// [T], or [fallback] (null by default) on any error (missing key,
+  /// mistyped value, non-String key, or a mistyped entry).
   ///
-  /// On any error (missing key, mistyped value, non-String key, or a
-  /// mistyped entry) [fallback] is returned; when [fallback] is null the
-  /// error is rethrown — mirroring the `onError` contract in the Firebase
-  /// reference (`asMap`/`getMap`).
-  ///
-  /// Unlike the reference (which `jsonDecode`s a string then
-  /// `cast<String, T>()`), values here are already decoded, so each entry
-  /// is checked eagerly instead of returning a lazy cast view. Int values
+  /// Values here are already decoded, so each entry is checked eagerly
+  /// and a copy is returned instead of a lazy cast view. Int values
   /// are coerced via `toDouble()` when `T` is `double` (parity with
-  /// [getDouble]); the reference is strict and would fall back there.
-  Map<String, T> getMap<T>(String key, {Map<String, T>? fallback = const {}}) {
+  /// [getDouble]).
+  Map<String, T>? getMap<T>(String key, {Map<String, T>? fallback}) {
     try {
-      final v = _values[key] ?? _defaults[key];
-      if (v is Map) {
-        if (v.isEmpty) return <String, T>{};
-        final out = <String, T>{};
-        for (final e in v.entries) {
-          if (e.key is! String) {
-            throw StateError(
-              'getMap($key): key ${e.key.runtimeType} is not String',
-            );
-          }
-          final k = e.key as String;
-          final val = e.value;
-          if (val is T) {
-            out[k] = val;
-          } else if (val is int && T == double) {
-            out[k] = val.toDouble() as T;
-          } else {
-            throw StateError(
-              'getMap($key): value of "$k" is ${val.runtimeType}, not $T',
-            );
-          }
-        }
-        return out;
-      }
-      throw StateError('getMap($key): value is ${v.runtimeType}, not Map');
+      return _coerceMap<T>(key, _values[key] ?? _defaults[key]);
     } catch (_) {
-      if (fallback == null) rethrow;
       return fallback;
     }
   }
@@ -693,6 +641,59 @@ class ConfigWire {
     _owned?.close();
     cwDebug(verbose, () => 'dispose complete env=$env');
   }
+}
+
+/// Rebuilds [v] as a `List<E>` copy, checking every element eagerly.
+/// Int elements coerce via `toDouble()` when `E` is `double`.
+/// Throws a [StateError] when [v] is not a List or an element mistypes —
+/// the shared rule behind [ConfigWire.getList].
+List<E> _coerceList<E>(String key, Object? v) {
+  if (v is! List) {
+    throw StateError('getList($key): value is ${v.runtimeType}, not List');
+  }
+  if (v.isEmpty) return <E>[];
+  final out = <E>[];
+  for (final e in v) {
+    if (e is E) {
+      out.add(e);
+    } else if (e is int && E == double) {
+      out.add(e.toDouble() as E);
+    } else {
+      throw StateError('getList($key): element ${e.runtimeType} is not $E');
+    }
+  }
+  return out;
+}
+
+/// Rebuilds [v] as a `Map<String, V>` copy, checking every entry eagerly.
+/// Int values coerce via `toDouble()` when `V` is `double`.
+/// Throws a [StateError] when [v] is not a Map, a key is not a String,
+/// or an entry mistypes — the shared rule behind [ConfigWire.getMap].
+Map<String, V> _coerceMap<V>(String key, Object? v) {
+  if (v is! Map) {
+    throw StateError('getMap($key): value is ${v.runtimeType}, not Map');
+  }
+  if (v.isEmpty) return <String, V>{};
+  final out = <String, V>{};
+  for (final e in v.entries) {
+    if (e.key is! String) {
+      throw StateError(
+        'getMap($key): key ${e.key.runtimeType} is not String',
+      );
+    }
+    final k = e.key as String;
+    final val = e.value;
+    if (val is V) {
+      out[k] = val;
+    } else if (val is int && V == double) {
+      out[k] = val.toDouble() as V;
+    } else {
+      throw StateError(
+        'getMap($key): value of "$k" is ${val.runtimeType}, not $V',
+      );
+    }
+  }
+  return out;
 }
 
 /// Parsed 200 body; null when the body is not a well-formed fetch document.

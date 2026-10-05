@@ -221,9 +221,9 @@ void main() {
         },
       );
       addTearDown(client.dispose);
-      expect(client.getList<String>('missing'), isEmpty);
-      expect(client.getList<String>('mixed'), isEmpty);
-      expect(client.getList<String>('not_a_list'), isEmpty);
+      expect(client.getList<String>('missing'), isNull);
+      expect(client.getList<String>('mixed'), isNull);
+      expect(client.getList<String>('not_a_list'), isNull);
       expect(
         client.getList<String>('mixed', fallback: const ['fb']),
         equals(['fb']),
@@ -231,7 +231,7 @@ void main() {
       expect(client.getList<int>('mixed', fallback: [9]), equals([9]));
     });
 
-    test('fallback null rethrows', () async {
+    test('missing/mistyped without fallback returns null', () async {
       final client = await clientWith(
         MockClient((_) async => http.Response('{}', 500)),
         defaults: {
@@ -239,14 +239,10 @@ void main() {
         },
       );
       addTearDown(client.dispose);
-      expect(
-        () => client.getList<String>('mixed', fallback: null),
-        throwsStateError,
-      );
-      expect(
-        () => client.getList<String>('missing', fallback: null),
-        throwsStateError,
-      );
+      expect(client.getList<String>('mixed', fallback: null), isNull);
+      expect(client.getList<String>('missing', fallback: null), isNull);
+      expect(client.getList<String>('mixed'), isNull);
+      expect(client.getList<String>('missing'), isNull);
     });
 
     test('returns a copy: mutating the result keeps the live view', () async {
@@ -257,7 +253,7 @@ void main() {
         },
       );
       addTearDown(client.dispose);
-      final first = client.getList<String>('tags');
+      final first = client.getList<String>('tags')!;
       first.add('hacked');
       expect(client.getList<String>('tags'), equals(['a']));
     });
@@ -322,10 +318,10 @@ void main() {
           },
         );
         addTearDown(client.dispose);
-        expect(client.getMap<int>('missing'), isEmpty);
-        expect(client.getMap<int>('mixed'), isEmpty);
-        expect(client.getMap<int>('not_a_map'), isEmpty);
-        expect(client.getMap<String>('weird'), isEmpty);
+        expect(client.getMap<int>('missing'), isNull);
+        expect(client.getMap<int>('mixed'), isNull);
+        expect(client.getMap<int>('not_a_map'), isNull);
+        expect(client.getMap<String>('weird'), isNull);
         expect(
           client.getMap<int>('mixed', fallback: const {'fb': 1}),
           equals({'fb': 1}),
@@ -333,7 +329,7 @@ void main() {
       },
     );
 
-    test('fallback null rethrows', () async {
+    test('missing/mistyped without fallback returns null', () async {
       final client = await clientWith(
         MockClient((_) async => http.Response('{}', 500)),
         defaults: {
@@ -341,14 +337,10 @@ void main() {
         },
       );
       addTearDown(client.dispose);
-      expect(
-        () => client.getMap<int>('mixed', fallback: null),
-        throwsStateError,
-      );
-      expect(
-        () => client.getMap<int>('missing', fallback: null),
-        throwsStateError,
-      );
+      expect(client.getMap<int>('mixed', fallback: null), isNull);
+      expect(client.getMap<int>('missing', fallback: null), isNull);
+      expect(client.getMap<int>('mixed'), isNull);
+      expect(client.getMap<int>('missing'), isNull);
     });
 
     test('returns a copy: mutating the result keeps the live view', () async {
@@ -359,7 +351,7 @@ void main() {
         },
       );
       addTearDown(client.dispose);
-      final first = client.getMap<int>('cfg');
+      final first = client.getMap<int>('cfg')!;
       first['hacked'] = 2;
       expect(client.getMap<int>('cfg'), equals({'a': 1}));
     });
@@ -376,10 +368,10 @@ void main() {
       addTearDown(client.dispose);
       expect(client.getList<Object>('mix'), equals([1, 'a', true]));
       expect(client.getList<dynamic>('mix'), equals([1, 'a', true]));
-      expect(client.getList<int>('mix'), isEmpty);
-      expect(client.getList<String>('mix'), isEmpty);
-      expect(client.getList<bool>('mix'), isEmpty);
-      expect(client.getList<num>('mix'), isEmpty);
+      expect(client.getList<int>('mix'), isNull);
+      expect(client.getList<String>('mix'), isNull);
+      expect(client.getList<bool>('mix'), isNull);
+      expect(client.getList<num>('mix'), isNull);
     });
 
     test('int+double mix: num accepts, double coerces, int rejects', () async {
@@ -392,8 +384,8 @@ void main() {
       addTearDown(client.dispose);
       expect(client.getList<num>('nums'), equals([1, 2.5]));
       expect(client.getList<double>('nums'), equals([1.0, 2.5]));
-      expect(client.getList<int>('nums'), isEmpty);
-      expect(client.getList<String>('nums'), isEmpty);
+      expect(client.getList<int>('nums'), isNull);
+      expect(client.getList<String>('nums'), isNull);
     });
 
     test('bool/int boundary rejects cross-type reads', () async {
@@ -404,9 +396,9 @@ void main() {
         },
       );
       addTearDown(client.dispose);
-      expect(client.getList<bool>('flags'), isEmpty);
-      expect(client.getList<int>('flags'), isEmpty);
-      expect(client.getList<num>('flags'), isEmpty);
+      expect(client.getList<bool>('flags'), isNull);
+      expect(client.getList<int>('flags'), isNull);
+      expect(client.getList<num>('flags'), isNull);
       expect(client.getList<Object>('flags'), equals([true, 1]));
     });
 
@@ -418,7 +410,7 @@ void main() {
         },
       );
       addTearDown(client.dispose);
-      expect(client.getList<int>('maybe'), isEmpty);
+      expect(client.getList<int>('maybe'), isNull);
       expect(client.getList<int?>('maybe'), equals([1, null]));
       expect(client.getList<Object?>('maybe'), equals([1, null]));
     });
@@ -440,8 +432,8 @@ void main() {
       final client = await clientWith(mock);
       addTearDown(client.dispose);
       expect(await client.fetchAndActivate(), isTrue);
-      expect(client.getList<String>('mix'), isEmpty);
-      expect(client.getList<int>('mix'), isEmpty);
+      expect(client.getList<String>('mix'), isNull);
+      expect(client.getList<int>('mix'), isNull);
       expect(client.getList<Object>('mix'), equals([1, 'a']));
     });
 
@@ -466,7 +458,7 @@ void main() {
       expect(await client.fetchAndActivate(), isTrue);
       // Server decodes the row as Map<String, dynamic>, so the exact
       // Map<String, int> read misses while the Map supertype hits.
-      expect(client.getList<Map<String, int>>('rows'), isEmpty);
+      expect(client.getList<Map<String, int>>('rows'), isNull);
       expect(client.getList<Map>('rows'), hasLength(1));
     });
 
@@ -482,10 +474,10 @@ void main() {
         client.getMap<Object>('mix'),
         equals({'a': 1, 'b': 'x', 'c': true}),
       );
-      expect(client.getMap<int>('mix'), isEmpty);
-      expect(client.getMap<String>('mix'), isEmpty);
-      expect(client.getMap<bool>('mix'), isEmpty);
-      expect(client.getMap<num>('mix'), isEmpty);
+      expect(client.getMap<int>('mix'), isNull);
+      expect(client.getMap<String>('mix'), isNull);
+      expect(client.getMap<bool>('mix'), isNull);
+      expect(client.getMap<num>('mix'), isNull);
     });
 
     test(
@@ -498,10 +490,10 @@ void main() {
           },
         );
         addTearDown(client.dispose);
-        expect(client.getMap<num>('nums'), equals({'a': 1, 'b': 2.5}));
-        expect(client.getMap<double>('nums'), equals({'a': 1.0, 'b': 2.5}));
-        expect(client.getMap<int>('nums'), isEmpty);
-        expect(client.getMap<String>('nums'), isEmpty);
+      expect(client.getMap<num>('nums'), equals({'a': 1, 'b': 2.5}));
+      expect(client.getMap<double>('nums'), equals({'a': 1.0, 'b': 2.5}));
+      expect(client.getMap<int>('nums'), isNull);
+      expect(client.getMap<String>('nums'), isNull);
       },
     );
 
@@ -513,7 +505,7 @@ void main() {
         },
       );
       addTearDown(client.dispose);
-      expect(client.getMap<int>('maybe'), isEmpty);
+      expect(client.getMap<int>('maybe'), isNull);
       expect(client.getMap<int?>('maybe'), equals({'a': 1, 'b': null}));
     });
 
@@ -534,8 +526,8 @@ void main() {
       final client = await clientWith(mock);
       addTearDown(client.dispose);
       expect(await client.fetchAndActivate(), isTrue);
-      expect(client.getMap<int>('cfg'), isEmpty);
-      expect(client.getMap<String>('cfg'), isEmpty);
+      expect(client.getMap<int>('cfg'), isNull);
+      expect(client.getMap<String>('cfg'), isNull);
       expect(client.getMap<Object>('cfg'), equals({'a': 1, 'b': 'x'}));
     });
   });

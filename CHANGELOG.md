@@ -13,6 +13,16 @@
   `cw.getInt('k')` -> `cw.getInt('k') ?? 0`;
   `cw.getDouble('k')` -> `cw.getDouble('k') ?? 0.0`;
   or branch on `null` to detect a missing/mistyped flag.
+- **Breaking:** `getList<T>` returns `List<T>?` (was `List<T>`
+  defaulting to `const []`) and `getMap<T>` returns
+  `Map<String, T>?` (was `Map<String, T>` defaulting to `const {}`).
+  The `fallback` default is now `null`, and the old
+  `fallback: null` rethrow contract is removed: any error (missing
+  key, mistyped value, mistyped element/entry) returns `fallback`.
+  **Migration**: `cw.getList<String>('k')` ->
+  `cw.getList<String>('k') ?? const []`;
+  `cw.getMap<int>('k')` -> `cw.getMap<int>('k') ?? const {}`;
+  drop `fallback: null` where it was used to rethrow.
 
 ## 0.1.2
 

@@ -1,3 +1,19 @@
+## 0.2.0
+
+### Changed
+
+- **Breaking:** scalar getters are now nullable with no silent default
+  (`lib/src/configwire_base.dart`): `getBool` returns `bool?` (was
+  `bool` defaulting to `false`), `getString` returns `String?` (was
+  `''`), `getInt` returns `int?` (was `0`), `getDouble` returns
+  `double?` (was `0.0`). A missing or mistyped key returns `null`
+  unless an explicit `fallback:` is passed.
+  **Migration**: `cw.getBool('k')` -> `cw.getBool('k') ?? false`;
+  `cw.getString('k')` -> `cw.getString('k') ?? ''`;
+  `cw.getInt('k')` -> `cw.getInt('k') ?? 0`;
+  `cw.getDouble('k')` -> `cw.getDouble('k') ?? 0.0`;
+  or branch on `null` to detect a missing/mistyped flag.
+
 ## 0.1.2
 
 ### Changed

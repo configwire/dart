@@ -64,8 +64,10 @@ void main() {
       expect(client.getInt('flag_int'), equals(7));
       expect(client.getDouble('flag_double'), equals(2.5));
       expect(client.getMap<int>('flag_json'), equals({'a': 1}));
-      expect(client.getBool('missing'), isFalse);
-      expect(client.getString('missing'), isEmpty);
+      expect(client.getBool('missing'), isNull);
+      expect(client.getString('missing'), isNull);
+      expect(client.getInt('missing'), isNull);
+      expect(client.getDouble('missing'), isNull);
     });
   });
 

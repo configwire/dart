@@ -82,14 +82,15 @@ await cw.dispose();
 ## Reading values
 
 All reads are synchronous over the in-memory view
-(`{...defaults, ...serverValues}`). Every getter takes a fallback
-used on missing keys or type mismatches:
+(`{...defaults, ...serverValues}`). Every getter returns a nullable
+type and takes a nullable fallback (default null) used on missing
+keys or type mismatches:
 
 ```dart
-cw.getBool('launch_flag'); // fallback false
-cw.getString('welcome', fallback: 'hi'); // fallback ''
-cw.getInt('retries'); // fallback 0
-cw.getDouble('ratio'); // fallback 0.0, coerces int via toDouble()
+cw.getBool('launch_flag'); // bool? — null when missing/mistyped
+cw.getString('welcome', fallback: 'hi'); // String? — 'hi' on miss
+cw.getInt('retries'); // int? — null when missing/mistyped
+cw.getDouble('ratio'); // double? — null when missing; coerces int via toDouble()
 cw.get<String>('welcome');
 cw.getAll(); // copy of the live view
 ```

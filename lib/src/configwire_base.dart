@@ -200,27 +200,30 @@ class ConfigWire {
   /// Latest activated release version (0 when nothing activated yet).
   int get version => _version;
 
-  /// Returns the bool value for [key], or [fallback] when missing or mistyped.
-  bool getBool(String key, {bool fallback = false}) {
+  /// Returns the bool value for [key], or [fallback] (null by default)
+  /// when missing or mistyped.
+  bool? getBool(String key, {bool? fallback}) {
     final v = _values[key] ?? _defaults[key];
     return v is bool ? v : fallback;
   }
 
-  /// Returns the String value for [key], or [fallback] when missing or mistyped.
-  String getString(String key, {String fallback = ''}) {
+  /// Returns the String value for [key], or [fallback] (null by default)
+  /// when missing or mistyped.
+  String? getString(String key, {String? fallback}) {
     final v = _values[key] ?? _defaults[key];
     return v is String ? v : fallback;
   }
 
-  /// Returns the int value for [key], or [fallback] when missing or mistyped.
-  int getInt(String key, {int fallback = 0}) {
+  /// Returns the int value for [key], or [fallback] (null by default)
+  /// when missing or mistyped.
+  int? getInt(String key, {int? fallback}) {
     final v = _values[key] ?? _defaults[key];
     return v is int ? v : fallback;
   }
 
   /// Returns the double value for [key], coercing ints via `toDouble()`,
-  /// or [fallback] when missing or mistyped.
-  double getDouble(String key, {double fallback = 0.0}) {
+  /// or [fallback] (null by default) when missing or mistyped.
+  double? getDouble(String key, {double? fallback}) {
     final v = _values[key] ?? _defaults[key];
     if (v is double) return v;
     if (v is int) return v.toDouble();

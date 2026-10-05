@@ -140,7 +140,7 @@ class RealtimeUpdater {
   /// Idempotent: a second call disconnects the previous run first.
   void connect() {
     if (_disposed) return;
-    disconnectSync();
+    _disconnectSync();
     _generation++;
     _running = true;
     _status = RealtimeStatus.connecting;
@@ -163,12 +163,12 @@ class RealtimeUpdater {
   /// client. Safe to call when already disconnected. Never throws.
   Future<void> disconnect() async {
     cwDebug(verbose, () => 'realtime disconnect env=$env');
-    disconnectSync();
+    _disconnectSync();
     // Let any in-flight stream read observe _running == false.
     await Future<void>.delayed(Duration.zero);
   }
 
-  void disconnectSync() {
+  void _disconnectSync() {
     final wasActive = _running || _status != RealtimeStatus.disconnected;
     _running = false;
     _generation++;
@@ -209,7 +209,7 @@ class RealtimeUpdater {
   Future<void> dispose() async {
     cwDebug(verbose, () => 'realtime dispose env=$env');
     _disposed = true;
-    disconnectSync();
+    _disconnectSync();
     await Future<void>.delayed(Duration.zero);
     if (_ownsClient) {
       try {

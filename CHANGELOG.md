@@ -23,6 +23,8 @@
   `cw.getList<String>('k') ?? const []`;
   `cw.getMap<int>('k')` -> `cw.getMap<int>('k') ?? const {}`;
   drop `fallback: null` where it was used to rethrow.
+- **Breaking:** `RealtimeUpdater.disconnectSync` is now private
+  (`_disconnectSync`). Use `disconnect()` (async) instead.
 
 ## 0.1.2
 

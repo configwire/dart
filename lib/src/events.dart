@@ -19,12 +19,8 @@ import 'cw_logger.dart';
 /// kind/variant/userHash/version only. `variant` is `""` here because
 /// the variants map has no `""` key (`variants[""] ?? ""`). `version`
 /// is the fetched release version so stats can break fetches down
-/// per version.
-///
-/// Deprecated `flag` compatibility: the POST body still sends
-/// `'flag': ''` (see below) so payloads validate against pre-removal
-/// servers; new servers ignore it. Do not add per-flag keys —
-/// analytics are never broken down by flag.
+/// per version. No per-flag keys — analytics are never broken down
+/// by flag.
 ///
 /// Fire-and-forget: every failure mode (network, timeout, non-2xx,
 /// malformed baseUrl) is swallowed and the future always completes
@@ -49,10 +45,6 @@ Future<void> postFetchEvent({
       'events': [
         {
           'kind': 'fetch',
-          // Deprecated: env-wide analytics have no per-flag breakdown.
-          // Sent as "" so pre-removal servers still validate the payload;
-          // new servers ignore it.
-          'flag': '',
           'variant': variants[''] ?? '',
           'userHash': sha256Hex16(userId),
           'version': version,

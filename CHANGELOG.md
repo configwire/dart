@@ -25,6 +25,14 @@
   drop `fallback: null` where it was used to rethrow.
 - **Breaking:** `RealtimeUpdater.disconnectSync` is now private
   (`_disconnectSync`). Use `disconnect()` (async) instead.
+- **Breaking:** the fetch-event POST no longer sends the deprecated
+  `'flag': ''` key (`lib/src/events.dart`). ConfigWire server v0.1.0
+  removed per-event flag attribution (ingest takes
+  kind/variant/userHash/version only; `1790000008_drop_event_flag`
+  dropped the `events.flag` / `event_daily.flag` columns), so payloads
+  are now `{"events":[{"kind":"fetch","variant":"",
+  "userHash":"<sha256hex16>","version":1}]}`. Requires server
+  >= v0.1.0; older servers need SDK <0.2.0.
 
 ## 0.1.2
 

@@ -593,13 +593,13 @@ void main() {
       },
     );
 
-    test('postFetchEvent carries per-flag attribution when flag passed', () async {
+    test('postEvent carries per-flag attribution when flag passed', () async {
       String? postedBody;
       final mock = MockClient((req) async {
         postedBody = req.body;
         return http.Response('{"accepted":1,"status":202}', 202);
       });
-      await postFetchEvent(
+      await postEvent(
         client: mock,
         baseUrl: 'http://localhost:8090',
         env: 'dev',
@@ -617,6 +617,30 @@ void main() {
       expect(ev['variant'], equals('treatment'));
       expect(ev['version'], equals(3));
       expect((ev['userHash'] as String).length, equals(16));
+    });
+
+    test('deprecated postFetchEvent forwards to postEvent', () async {
+      String? postedBody;
+      final mock = MockClient((req) async {
+        postedBody = req.body;
+        return http.Response('{"accepted":1,"status":202}', 202);
+      });
+      // ignore: deprecated_member_use_from_same_package
+      await postFetchEvent(
+        client: mock,
+        baseUrl: 'http://localhost:8090',
+        env: 'dev',
+        apiKey: 'test-key',
+        userId: 'user-7',
+        variants: {'exp_bool': 'treatment'},
+        flag: 'exp_bool',
+        version: 3,
+      );
+      expect(postedBody, isNotNull);
+      final body = jsonDecode(postedBody!) as Map;
+      final ev = (body['events'] as List).single as Map;
+      expect(ev['kind'], equals('fetch'));
+      expect(ev['flag'], equals('exp_bool'));
     });
 
     test('304-keep: cached values retained, returns false', () async {
@@ -900,6 +924,120 @@ void main() {
       expect(gotHash, hasLength(16));
       // Known vector: cross-checked against `sha256sum` in live QA.
       expect(sha256Hex16(''), equals(''));
+    });
+  });
+
+  group('trackExposure/trackFetch helpers', () {
+    test('trackExposure posts kind=exposure with flag/variant/version/hash',
+        () async {
+      String? postedBody;
+      final mock = MockClient((req) async {
+        if (req.method == 'POST') {
+          postedBody = req.body;
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        return http.Response(
+          fetch200(
+            version: 3,
+            values: {'exp_bool': true},
+            variants: {'exp_bool': 'treatment'},
+          ),
+          200,
+        );
+      });
+      final client = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: mock,
+        store: MemoryCacheStore(),
+        minimumFetchInterval: Duration.zero,
+        // ignore: avoid_redundant_argument_values
+        targeting: const Targeting(userId: 'user-7'),
+      );
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      await client.trackExposure('exp_bool');
+      expect(postedBody, isNotNull);
+      final body = jsonDecode(postedBody!) as Map;
+      final ev = (body['events'] as List).single as Map;
+      expect(ev['kind'], equals('exposure'));
+      expect(ev['flag'], equals('exp_bool'));
+      expect(ev['variant'], equals('treatment'));
+      expect(ev['version'], equals(3));
+      expect(ev['userHash'], equals(sha256Hex16('user-7')));
+      expect((ev['userHash'] as String), hasLength(16));
+    });
+
+    test('trackFetch flag empty posts kind=fetch env-wide aggregate',
+        () async {
+      String? postedBody;
+      final mock = MockClient((req) async {
+        if (req.method == 'POST') {
+          postedBody = req.body;
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        return http.Response(fetch200(version: 2), 200);
+      });
+      final client = await clientWith(mock);
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      postedBody = null;
+      await client.trackFetch();
+      expect(postedBody, isNotNull);
+      final body = jsonDecode(postedBody!) as Map;
+      final ev = (body['events'] as List).single as Map;
+      expect(ev['kind'], equals('fetch'));
+      expect(ev['flag'], equals(''));
+      expect(ev['version'], equals(2));
+    });
+
+    test('empty-flag exposure sends no HTTP call', () async {
+      var posts = 0;
+      final mock = MockClient((req) async {
+        if (req.method == 'POST') {
+          posts++;
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        return http.Response(fetch200(), 200);
+      });
+      final client = await clientWith(mock);
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      final postsAfterFetch = posts;
+      await client.trackExposure('   ');
+      expect(posts, equals(postsAfterFetch));
+    });
+
+    test('offline client helpers never throw', () async {
+      final offline = MockClient(
+        (_) async => throw const SocketException('down'),
+      );
+      final client = await clientWith(offline);
+      addTearDown(client.dispose);
+      await client.trackExposure('exp_bool');
+      await client.trackFetch(flag: 'exp_bool');
+    });
+
+    test('deprecated postFetchEvent invalid kind is a no-op, never throws',
+        () async {
+      var posts = 0;
+      final mock = MockClient((_) async {
+        posts++;
+        return http.Response('{"accepted":1,"status":202}', 202);
+      });
+      // ignore: deprecated_member_use_from_same_package
+      await postFetchEvent(
+        client: mock,
+        baseUrl: 'http://localhost:8090',
+        env: 'dev',
+        apiKey: 'test-key',
+        userId: 'user-7',
+        variants: {'exp_bool': 'treatment'},
+        flag: 'exp_bool',
+        kind: 'bogus',
+      );
+      expect(posts, equals(0));
     });
   });
 }

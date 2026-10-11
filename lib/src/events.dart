@@ -6,7 +6,13 @@ import 'package:http/http.dart' as http;
 
 import 'cw_logger.dart';
 
-/// Best-effort fetch-event POST helper.
+/// Analytics event kind sent as `kind` in the events POST body.
+///
+/// Serialized with `kind.name` (`fetch` / `exposure`), matching the
+/// server ingest contract (`configwire/ingest/ingest.go`).
+enum EventKind { fetch, exposure }
+
+/// Best-effort analytics-event POST helper.
 ///
 /// After a successful 200 fetch the SDK reports one analytics event:
 ///
@@ -25,10 +31,14 @@ import 'cw_logger.dart';
 /// `flag: ""`, and the server stores it with the relation unset while
 /// preserving kind/variant/userHash/version.
 ///
+/// Most callers should prefer `ConfigWire.trackExposure` /
+/// `ConfigWire.trackFetch`, which snapshot targeting, variants, and
+/// version for you.
+///
 /// Fire-and-forget: every failure mode (network, timeout, non-2xx,
 /// malformed baseUrl) is swallowed and the future always completes
 /// normally. It MUST never fail the fetch.
-Future<void> postFetchEvent({
+Future<void> postEvent({
   required http.Client client,
   required String baseUrl,
   required String env,
@@ -39,6 +49,7 @@ Future<void> postFetchEvent({
   int version = 0,
   Duration timeout = const Duration(seconds: 5),
   bool verbose = false,
+  EventKind kind = EventKind.fetch,
 }) async {
   try {
     cwDebug(verbose, () => 'events POST start env=$env');
@@ -48,7 +59,7 @@ Future<void> postFetchEvent({
     final body = jsonEncode({
       'events': [
         {
-          'kind': 'fetch',
+          'kind': kind.name,
           'flag': flag,
           'variant': variants[flag] ?? '',
           'userHash': sha256Hex16(userId),
@@ -79,6 +90,45 @@ Future<void> postFetchEvent({
     final safe = apiKey.isNotEmpty ? raw.replaceAll(apiKey, '<redacted>') : raw;
     cwDebug(verbose, () => 'events POST failed env=$env error=$safe');
   }
+}
+
+/// Legacy fetch-event sender. Prefer `postEvent` with [EventKind], or
+/// the easier `ConfigWire.trackExposure` / `ConfigWire.trackFetch`,
+/// which snapshot targeting, variants, and version for you.
+@Deprecated(
+  'Use postEvent(kind: EventKind.fetch|EventKind.exposure) instead, '
+  'or ConfigWire.trackExposure/trackFetch for the easy path.',
+)
+Future<void> postFetchEvent({
+  required http.Client client,
+  required String baseUrl,
+  required String env,
+  required String apiKey,
+  required String userId,
+  required Map<String, String> variants,
+  String flag = '',
+  int version = 0,
+  Duration timeout = const Duration(seconds: 5),
+  bool verbose = false,
+  String kind = 'fetch',
+}) async {
+  if (kind != 'fetch' && kind != 'exposure') {
+    cwDebug(verbose, () => 'events POST skipped env=$env invalid kind=$kind');
+    return;
+  }
+  return postEvent(
+    client: client,
+    baseUrl: baseUrl,
+    env: env,
+    apiKey: apiKey,
+    userId: userId,
+    variants: variants,
+    flag: flag,
+    version: version,
+    timeout: timeout,
+    verbose: verbose,
+    kind: kind == 'exposure' ? EventKind.exposure : EventKind.fetch,
+  );
 }
 
 /// `sha256hex16`: lowercase `hex(sha256(utf8(userId)))[:16]`.

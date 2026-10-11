@@ -398,7 +398,7 @@ class ConfigWire {
   /// defaults, and nothing here ever throws.
   ///
   /// Latency note: on a successful fetch this awaits one best-effort
-  /// analytics POST (`postFetchEvent`, up to 5s timeout) before
+  /// analytics POST (`postEvent`, up to 5s timeout) before
   /// returning. The POST is intentionally awaited (not fire-and-forget)
   /// so callers/tests observe the event body; failures are swallowed
   /// and never fail the fetch.
@@ -425,7 +425,6 @@ class ConfigWire {
       return false;
     }
 
-    final uid = _targeting.userId.trim();
     final client = _http;
     try {
       final uri = _buildConfigUri(_targeting);
@@ -498,21 +497,7 @@ class ConfigWire {
             : '$e';
         cwDebug(verbose, () => 'store.save failed env=$env error=$saveError');
       }
-      // Fetch analytics: whole-release fetch, so no single flag
-      // attribution — send the env-wide aggregate (flag ""). Per-flag
-      // fetch/exposure attribution belongs to callers that evaluate one
-      // flag key; they pass flag: <key> to postFetchEvent directly.
-      await postFetchEvent(
-        client: client,
-        baseUrl: baseUrl,
-        env: env,
-        apiKey: apiKey,
-        userId: uid,
-        variants: Map<String, String>.from(_variants),
-        flag: '',
-        version: parsed.version,
-        verbose: verbose,
-      );
+      await trackFetch();
       return true;
     } catch (e) {
       // Network failure, timeout, malformed URL, sync throw from the
@@ -523,6 +508,99 @@ class ConfigWire {
       cwDebug(verbose, () => 'fetch error env=$env error=$fetchError');
       _lastFetchStatus = FetchStatus.error;
       return false;
+    }
+  }
+
+  /// Reports that the current user was exposed to [flag]'s evaluated value.
+  ///
+  /// Call this where [flag]'s value actually influenced behavior —
+  /// after a `getBool`/`getString`/… read decided what to render or do —
+  /// not on every fetch. That is what keeps `exposures` and
+  /// `perVariant`/`rates` in `GET .../stats?flag=<key>` meaningful:
+  /// one exposure per user decision, not per config refresh.
+  ///
+  /// ```dart
+  /// await cw.fetchAndActivate();
+  /// final on = cw.getBool('checkout') ?? false;
+  /// render(on);
+  /// await cw.trackExposure('checkout');
+  /// ```
+  ///
+  /// Sends one best-effort `exposure` event snapping the sticky state at
+  /// call time: `variant` is `_variants[flag] ?? ''` (unknown or
+  /// non-experiment flags record `''`), identity is the trimmed sticky
+  /// user id (hashed to 16 hex chars, anonymous sends `''`), and
+  /// `version` is the current [_version]. Empty/whitespace flags are a
+  /// no-op (an exposure without a flag key is meaningless).
+  ///
+  /// Never throws: offline, timeout, and malformed-URL faults are
+  /// swallowed, with a `cwDebug` line when [verbose] is true.
+  Future<void> trackExposure(String flag) async {
+    try {
+      if (flag.trim().isEmpty) {
+        cwDebug(verbose, () => 'trackExposure skipped env=$env empty flag');
+        return;
+      }
+      await postEvent(
+        client: _http,
+        baseUrl: baseUrl,
+        env: env,
+        apiKey: apiKey,
+        userId: _targeting.userId.trim(),
+        variants: Map<String, String>.from(_variants),
+        flag: flag,
+        version: _version,
+        verbose: verbose,
+        kind: EventKind.exposure,
+      );
+    } catch (e) {
+      final safe = apiKey.isNotEmpty
+          ? '$e'.replaceAll(apiKey, '<redacted>')
+          : '$e';
+      cwDebug(verbose, () => 'trackExposure failed env=$env error=$safe');
+    }
+  }
+
+  /// Reports a manual fetch event, optionally attributed to one flag.
+  ///
+  /// You rarely need this: [fetchAndActivate] already sends the env-wide
+  /// aggregate (`flag: ''`) on every 200 (and calls this helper to do
+  /// it). Call it only when one evaluated flag deserves its own fetch
+  /// attribution alongside the aggregate — the per-flag counterpart to
+  /// [trackExposure].
+  ///
+  /// ```dart
+  /// await cw.trackFetch(flag: 'checkout'); // per-flag fetch counts
+  /// await cw.trackFetch(); // env-wide aggregate, same as the auto event
+  /// ```
+  ///
+  /// Same snapshot semantics as [trackExposure] but with kind `fetch`:
+  /// `variant` is `_variants[flag] ?? ''`, identity is the trimmed
+  /// sticky user id, and `version` is the current [_version]. The
+  /// default `flag: ''` sends the env-wide aggregate (no single flag
+  /// attribution).
+  ///
+  /// Never throws: every failure mode is swallowed, with a `cwDebug`
+  /// line when [verbose] is true (see [trackExposure]).
+  Future<void> trackFetch({String flag = ''}) async {
+    try {
+      await postEvent(
+        client: _http,
+        baseUrl: baseUrl,
+        env: env,
+        apiKey: apiKey,
+        userId: _targeting.userId.trim(),
+        variants: Map<String, String>.from(_variants),
+        flag: flag,
+        version: _version,
+        verbose: verbose,
+        kind: EventKind.fetch,
+      );
+    } catch (e) {
+      final safe = apiKey.isNotEmpty
+          ? '$e'.replaceAll(apiKey, '<redacted>')
+          : '$e';
+      cwDebug(verbose, () => 'trackFetch failed env=$env error=$safe');
     }
   }
 

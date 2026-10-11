@@ -249,10 +249,28 @@ See `example/main.dart` for a runnable demo.
 
 ## Analytics
 
-Every 200 fetch posts one best-effort env-wide fetch event with
-`sha256Hex16(userId)[:16]` as the identity hash (empty userId sends
+Every 200 fetch posts one best-effort env-wide fetch event (`flag: ""`)
+with `sha256Hex16(userId)[:16]` as the identity hash (empty userId sends
 `""`). The POST is awaited with a 5s timeout but never fails the
 fetch: network faults, timeouts, and non-2xx responses are swallowed.
+
+`postFetchEvent` takes an optional `flag` param (default `""`). The
+whole-release fetch in `fetchAndActivate` sends `flag: ""`, the env-wide
+aggregate with the flag relation unset. Callers attributing a single flag
+pass `flag: <key>` with `variant: variants[flag] ?? ""` and the fetched
+release as `version`, so exposure events carry per-flag attribution and
+stats can break counts down by flag. Both shapes share the same best-effort
+5s never-fail-fetch behavior.
+
+Stats filter by flag:
+
+```text
+GET /api/v1/admin/env/{env}/stats?since=7d&flag=<key>
+```
+
+With `flag=<key>` the server returns filtered counts plus `flagFound` and
+`echo.flag`. Unknown keys return zeros with `200` and `flagFound: false`.
+Omitting `flag` returns the unfiltered env-wide counts.
 
 ## Logging
 

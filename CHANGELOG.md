@@ -1,3 +1,20 @@
+## Unreleased
+
+### Added
+
+- Restored per-flag attribution on the fetch-event POST
+  (`lib/src/events.dart`): `postFetchEvent(...)` takes a new optional
+  `flag` (`String`, defaults to `''`) and sends it as `'flag': flag`
+  with `variant: variants[flag] ?? ''`
+  (`{"events":[{"kind":"fetch","flag":"exp_bool","variant":"control",
+  "userHash":"<sha256hex16(userId)>","version":1}]}`) so stats can
+  break fetches down by flag (`GET .../stats?flag=<key>`).
+  `ConfigWire.fetchAndActivate` keeps sending the env-wide aggregate
+  (`flag: ''`): a whole-release fetch has no single flag attribution.
+  Fire-and-forget posture unchanged (never fails the fetch; key
+  redacted from error strings). Requires server with per-flag events;
+  older env-wide-only servers ignore the `flag` key.
+
 ## 0.2.0
 
 ### Changed

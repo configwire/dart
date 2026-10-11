@@ -21,7 +21,7 @@ dependencies:
   configwire: ^0.2.0
 ```
 
-Git fallback (before/while pub.dev review is pending):
+If pinning to git:
 
 ```yaml
 dependencies:

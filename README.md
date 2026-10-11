@@ -18,7 +18,7 @@ Or pin it in your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  configwire: ^0.2.0
+  configwire: ^0.2.1
 ```
 
 If pinning to git:

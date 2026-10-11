@@ -2,6 +2,19 @@
 
 ### Added
 
+- Opt-in `ConfigWire.trackExposure(flag)` / `ConfigWire.trackFetch({flag})`
+  helpers (`lib/src/configwire_base.dart`) plus an `EventKind`
+  (`fetch` / `exposure`, serialized via `kind.name`) `kind` param on the
+  canonical `postEvent(...)` (`lib/src/events.dart`).
+  `trackExposure('exp_bool')` posts
+  `{"events":[{"kind":"exposure","flag":"exp_bool",
+  "variant":"<arm>","userHash":"<sha256hex16>","version":<n>}]}`;
+  `trackFetch()` posts the env-wide `flag: ''` aggregate. Both helpers
+  return `Future<void>` and never throw (offline/timeout/malformed URL
+  swallowed; empty exposure flags send nothing). `fetchAndActivate`
+  auto-send behavior unchanged (env-wide `flag: ''`). Legacy
+  `postFetchEvent` is deprecated and forwards to `postEvent` (old calls
+  compile unchanged).
 - Restored per-flag attribution on the fetch-event POST
   (`lib/src/events.dart`): `postFetchEvent(...)` takes a new optional
   `flag` (`String`, defaults to `''`) and sends it as `'flag': flag`

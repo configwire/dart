@@ -254,9 +254,10 @@ with `sha256Hex16(userId)[:16]` as the identity hash (empty userId sends
 `""`). The POST is awaited with a 5s timeout but never fails the
 fetch: network faults, timeouts, and non-2xx responses are swallowed.
 
-`postFetchEvent` takes an optional `flag` param (default `""`). The
-whole-release fetch in `fetchAndActivate` sends `flag: ""`, the env-wide
-aggregate with the flag relation unset. Callers attributing a single flag
+`postEvent` takes an optional `flag` param (default `""`) and a
+`kind` (`EventKind.fetch` / `EventKind.exposure`, serialized via
+`kind.name`). The whole-release fetch in `fetchAndActivate` sends
+`flag: ""`, the env-wide aggregate with the flag relation unset. Callers attributing a single flag
 pass `flag: <key>` with `variant: variants[flag] ?? ""` and the fetched
 release as `version`, so exposure events carry per-flag attribution and
 stats can break counts down by flag. Both shapes share the same best-effort
@@ -271,6 +272,23 @@ GET /api/v1/admin/env/{env}/stats?since=7d&flag=<key>
 With `flag=<key>` the server returns filtered counts plus `flagFound` and
 `echo.flag`. Unknown keys return zeros with `200` and `flagFound: false`.
 Omitting `flag` returns the unfiltered env-wide counts.
+
+Opt-in manual helpers (per-flag attribution is manual; the auto fetch
+event stays env-wide):
+
+```dart
+await cw.trackExposure('checkout'); // kind=exposure, variant from _variants
+await cw.trackFetch(flag: 'checkout'); // kind=fetch, per-flag
+await cw.trackFetch(); // kind=fetch, flag '' = env-wide aggregate
+```
+
+Both helpers return `Future<void>` and never throw: offline, timeout,
+and malformed-URL faults are swallowed (empty/whitespace exposure flags
+send nothing). The auto `fetchAndActivate` event is always the env-wide
+`flag: ""` aggregate; call the helpers when one evaluated flag deserves
+its own exposure/fetch attribution. Raw `postEvent` is available for
+custom send paths; legacy `postFetchEvent` remains as a deprecated
+forwarder to `postEvent`.
 
 ## Logging
 

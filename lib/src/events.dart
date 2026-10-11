@@ -11,16 +11,19 @@ import 'cw_logger.dart';
 /// After a successful 200 fetch the SDK reports one analytics event:
 ///
 /// ```json
-/// {"events":[{"kind":"fetch","variant":"",
+/// {"events":[{"kind":"fetch","flag":"exp_bool","variant":"control",
 ///             "userHash":"<sha256hex16(userId)>","version":1}]}
 /// ```
 ///
-/// Analytics are env-wide: the canonical event shape carries
-/// kind/variant/userHash/version only. `variant` is `""` here because
-/// the variants map has no `""` key (`variants[""] ?? ""`). `version`
-/// is the fetched release version so stats can break fetches down
-/// per version. No per-flag keys — analytics are never broken down
-/// by flag.
+/// `flag` carries the per-flag attribution key so stats can break
+/// fetches down by flag (`GET .../stats?flag=<key>`); `variant` is
+/// `variants[flag] ?? ""` (flags without an experiment arm record
+/// `""`). `version` is the fetched release version so stats can break
+/// fetches down per version. The default `flag: ""` keeps the historic
+/// env-wide aggregate shape: a fetch with no single flag attribution
+/// (the whole-release fetch in `ConfigWire.fetchAndActivate`) sends
+/// `flag: ""`, and the server stores it with the relation unset while
+/// preserving kind/variant/userHash/version.
 ///
 /// Fire-and-forget: every failure mode (network, timeout, non-2xx,
 /// malformed baseUrl) is swallowed and the future always completes
@@ -32,6 +35,7 @@ Future<void> postFetchEvent({
   required String apiKey,
   required String userId,
   required Map<String, String> variants,
+  String flag = '',
   int version = 0,
   Duration timeout = const Duration(seconds: 5),
   bool verbose = false,
@@ -45,7 +49,8 @@ Future<void> postFetchEvent({
       'events': [
         {
           'kind': 'fetch',
-          'variant': variants[''] ?? '',
+          'flag': flag,
+          'variant': variants[flag] ?? '',
           'userHash': sha256Hex16(userId),
           'version': version,
         },

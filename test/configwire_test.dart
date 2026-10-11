@@ -582,15 +582,42 @@ void main() {
         expect((onDisk['values'] as Map)['flag_bool'], isFalse);
 
         // Fetch event posted best-effort with hashed user (anonymous -> "").
+        // Whole-release fetch carries the env-wide aggregate flag ("").
         expect(postedBody, isNotNull);
         final body = jsonDecode(postedBody!) as Map;
         final ev = (body['events'] as List).single as Map;
         expect(ev['kind'], equals('fetch'));
-        expect(ev.containsKey('flag'), isFalse);
+        expect(ev['flag'], equals(''));
         expect(ev['userHash'], equals(''));
         expect(ev['version'], equals(1));
       },
     );
+
+    test('postFetchEvent carries per-flag attribution when flag passed', () async {
+      String? postedBody;
+      final mock = MockClient((req) async {
+        postedBody = req.body;
+        return http.Response('{"accepted":1,"status":202}', 202);
+      });
+      await postFetchEvent(
+        client: mock,
+        baseUrl: 'http://localhost:8090',
+        env: 'dev',
+        apiKey: 'test-key',
+        userId: 'user-7',
+        variants: {'exp_bool': 'treatment'},
+        flag: 'exp_bool',
+        version: 3,
+      );
+      expect(postedBody, isNotNull);
+      final body = jsonDecode(postedBody!) as Map;
+      final ev = (body['events'] as List).single as Map;
+      expect(ev['kind'], equals('fetch'));
+      expect(ev['flag'], equals('exp_bool'));
+      expect(ev['variant'], equals('treatment'));
+      expect(ev['version'], equals(3));
+      expect((ev['userHash'] as String).length, equals(16));
+    });
 
     test('304-keep: cached values retained, returns false', () async {
       var calls = 0;

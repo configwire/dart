@@ -498,6 +498,10 @@ class ConfigWire {
             : '$e';
         cwDebug(verbose, () => 'store.save failed env=$env error=$saveError');
       }
+      // Fetch analytics: whole-release fetch, so no single flag
+      // attribution — send the env-wide aggregate (flag ""). Per-flag
+      // fetch/exposure attribution belongs to callers that evaluate one
+      // flag key; they pass flag: <key> to postFetchEvent directly.
       await postFetchEvent(
         client: client,
         baseUrl: baseUrl,
@@ -505,6 +509,7 @@ class ConfigWire {
         apiKey: apiKey,
         userId: uid,
         variants: Map<String, String>.from(_variants),
+        flag: '',
         version: parsed.version,
         verbose: verbose,
       );

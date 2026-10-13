@@ -1,3 +1,17 @@
+## 0.3.0
+
+### Changed
+
+- **Breaking:** fetch identity is now userHash-only (`lib/src/targeting.dart`
+  `toQueryParameters` emits `?userHash=<sha256Hex16(userId)>`;
+  `lib/src/events.dart` posts `userHash`). Raw `uid` is never sent:
+  no `?uid=` emission and no dual-send (hash-only by design).
+  **Migration:** no client code change needed unless you depended on
+  `?uid=` server-side — key rules off `UserHash` instead.
+  Requires a server with the dual-accept window: **upgrade the server
+  first**; pre-window servers that require `?uid=` will treat these
+  fetches as anonymous.
+
 ## 0.2.1
 
 ### Added

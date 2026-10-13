@@ -903,8 +903,8 @@ void main() {
       expect(client.getVariants().containsKey('flag_a'), isFalse);
     });
 
-    test('uid query param sent and userHash is sha256hex16', () async {
-      String? gotUid;
+    test('userHash query param sent and userHash is sha256hex16', () async {
+      Map<String, String>? gotQuery;
       String? gotHash;
       final mock = MockClient((req) async {
         if (req.method == 'POST') {
@@ -912,18 +912,31 @@ void main() {
               (jsonDecode(req.body) as Map)['events'][0]['userHash'] as String?;
           return http.Response('{"accepted":1,"status":202}', 202);
         }
-        gotUid = req.url.queryParameters['uid'];
+        gotQuery = Map<String, String>.from(req.url.queryParameters);
         return http.Response(fetch200(), 200);
       });
       final client = await clientWith(mock);
       addTearDown(client.dispose);
       client.setTargeting(const Targeting(userId: 'qa-user-7'));
       await client.fetchAndActivate();
-      expect(gotUid, equals('qa-user-7'));
+      expect(gotQuery, isNotNull);
+      expect(gotQuery!.containsKey('uid'), isFalse);
+      expect(
+        gotQuery!['userHash'],
+        equals(sha256Hex16('qa-user-7')),
+      );
+      expect(gotQuery!['userHash'], hasLength(16));
+      expect(gotQuery!['userHash'], matches(RegExp(r'^[0-9a-f]{16}$')));
       expect(gotHash, equals(sha256Hex16('qa-user-7')));
       expect(gotHash, hasLength(16));
       // Known vector: cross-checked against `sha256sum` in live QA.
       expect(sha256Hex16(''), equals(''));
+      // Anonymous targeting sends no identity keys (bare path).
+      expect(const Targeting().toQueryParameters(), isEmpty);
+      expect(
+        const Targeting(userId: '  ').toQueryParameters(),
+        isNot(contains('userHash')),
+      );
     });
   });
 

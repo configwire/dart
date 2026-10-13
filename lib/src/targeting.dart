@@ -1,11 +1,13 @@
 import 'dart:convert';
 
+import 'events.dart';
+
 /// Targeting attributes sent as fetch query params so the server can
 /// evaluate `rules` per-fetch (`configwire/fetch/fetch.go:BuildContext`
 /// -> `configwire/eval/eval.go:Evaluate`).
 ///
 /// Mapping (client -> server `eval.Context`):
-/// * [userId] -> `?uid=` -> `UserID` (percentile/experiment bucketing).
+/// * [userId] -> `?userHash=<sha256hex16>` -> `UserHash` (percentile/experiment bucketing).
 /// * [platform] -> `?platform=` -> `Platform` (`==/!=/contains/regex`).
 /// * [appVersion] -> `?appVersion=` -> strict semver compare.
 /// * [locale] -> `?locale=`, [country] -> `?country=`.
@@ -22,7 +24,8 @@ class Targeting {
     this.customAttrs = const {},
   });
 
-  /// User identity for `uid` + `percentile` bucketing (`Bucket(userID,seed)`).
+  /// User identity hashed to `userHash` + `percentile` bucketing (`Bucket(userHash,seed)`).
+  /// Raw identity is never sent; [toQueryParameters] emits only `sha256Hex16(userId)`.
   final String userId;
 
   /// e.g. `ios`, `android`, `web`.
@@ -63,9 +66,10 @@ class Targeting {
 
   /// Query params for `GET /api/v1/env/{env}/config`. Empty fields omitted.
   /// `customAttrs` encoded as compact JSON; empty map omitted.
+  /// [userId] is emitted as `?userHash=<sha256hex16>` (empty omitted).
   Map<String, String> toQueryParameters() {
     final q = <String, String>{};
-    if (userId.trim().isNotEmpty) q['uid'] = userId.trim();
+    if (userId.trim().isNotEmpty) q['userHash'] = sha256Hex16(userId.trim());
     if (platform.isNotEmpty) q['platform'] = platform;
     if (appVersion.isNotEmpty) q['appVersion'] = appVersion;
     if (locale.isNotEmpty) q['locale'] = locale;

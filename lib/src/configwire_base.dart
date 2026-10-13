@@ -606,6 +606,8 @@ class ConfigWire {
 
   /// Builds `GET /api/v1/env/{env}/config?...` with targeting query
   /// params omitted when empty (`Targeting.toQueryParameters`).
+  /// Identity is hash-only: `userId` emits as `?userHash=<sha256hex16>`,
+  /// never raw `?uid=`; empty identity sends the bare path.
   Uri _buildConfigUri(Targeting targeting) {
     final base = baseUrl.replaceAll(RegExp(r'/+$'), '');
     final path = '/api/v1/env/${Uri.encodeComponent(env)}/config';

@@ -18,7 +18,7 @@ Or pin it in your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  configwire: ^0.2.1
+  configwire: ^0.3.0
 ```
 
 If pinning to git:
@@ -176,7 +176,8 @@ and later calls return at once without reloading or refetching.
 ## Targeting
 
 Targeting attributes are sent as fetch query params so the server can
-evaluate `rules` per fetch (`userId` → `?uid=`, `platform`,
+evaluate `rules` per fetch (`userId` → `?userHash=<sha256hex16>`,
+`platform`,
 `appVersion`, `locale`, `country`, `customAttrs` → `?attrs=` JSON).
 Empty strings / empty maps are omitted (anonymous).
 

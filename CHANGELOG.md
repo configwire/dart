@@ -8,9 +8,9 @@
   no `?uid=` emission and no dual-send (hash-only by design).
   **Migration:** no client code change needed unless you depended on
   `?uid=` server-side — key rules off `UserHash` instead.
-  Requires a server with the dual-accept window: **upgrade the server
-  first**; pre-window servers that require `?uid=` will treat these
-  fetches as anonymous.
+  Supported server: `configwire ^0.1.9` or later (dual-accept window):
+  **upgrade the server first**; older servers (`<0.1.9`) will treat
+  these fetches as anonymous.
 
 ## 0.2.1
 

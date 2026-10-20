@@ -133,11 +133,10 @@ Future<void> postFetchEvent({
 
 /// `sha256hex16`: lowercase `hex(sha256(utf8(userId)))[:16]`.
 ///
-/// CHOICE (recorded per contract): the `crypto` package (pure-Dart,
-/// no Flutter, no native) instead of hand-rolling SHA-256 — audited
-/// implementation, zero platform risk. Matches the server's
-/// `HashUserID` exactly, including empty input -> `""`
-/// (an anonymous fetch carries no identity, not even a hash).
+/// Deprecated: the server ignores client-sent identity and derives an
+/// ephemeral anonID per request. Kept for the compat window; will be
+/// removed in the next major release.
+@Deprecated('Server derives ephemeral anonID; client identity hash is ignored and will be removed next major.')
 String sha256Hex16(String userId) {
   if (userId.isEmpty) return '';
   return crypto.sha256.convert(utf8.encode(userId)).toString().substring(0, 16);

@@ -1,3 +1,21 @@
+## 0.3.1
+
+### Deprecated
+
+- `Targeting.userId` / `Targeting.country` (`lib/src/targeting.dart`)
+  are deprecated (accepted-but-ignored): the server derives an
+  ephemeral anonID per request and derives country from request
+  headers, ignoring the client-sent values. `toQueryParameters`
+  keeps emitting `?userHash=` / `country` for the compat window;
+  removal lands in the next major release.
+  **Migration:** no action needed — stop setting identity; existing
+  `Targeting(userId: ...)` calls compile unchanged.
+  Supported server: `configwire ^0.1.9` or later.
+- `sha256Hex16` / `postEvent` `userHash` compat emission
+  (`lib/src/events.dart`) is deprecated: the server ignores
+  client-sent identity hashes. Kept for the compat window; will be
+  removed in the next major release. No action needed.
+
 ## 0.3.0
 
 ### Changed

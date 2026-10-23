@@ -106,9 +106,7 @@ void main() {
         );
         expect(decoded, isNotNull);
         expect(decoded!.bucket, b);
-        final viaString = cacheDataFromJsonString(
-          jsonEncode(data.toJson()),
-        );
+        final viaString = cacheDataFromJsonString(jsonEncode(data.toJson()));
         expect(viaString, isNotNull);
         expect(viaString!.bucket, b);
       }

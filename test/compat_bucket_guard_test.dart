@@ -69,8 +69,7 @@ void main() {
       expect(second.containsKey('uid'), isFalse);
     });
 
-    test('Targeting never emits ?b= itself (client wire owns it)',
-        () async {
+    test('Targeting never emits ?b= itself (client wire owns it)', () async {
       const q = Targeting(userId: 'user-7', country: 'US');
       expect(q.toQueryParameters().containsKey('b'), isFalse);
       expect(q.toQueryParameters()['country'], equals('US'));
@@ -78,8 +77,7 @@ void main() {
   });
 
   group('compat: tolerant parse with future keys beside bucket', () {
-    test('unknown future keys load with bucket intact, never throw',
-        () async {
+    test('unknown future keys load with bucket intact, never throw', () async {
       final raw = jsonEncode({
         'etag': 'e9',
         'version': 2,
@@ -87,7 +85,9 @@ void main() {
         'values': {'k': true},
         'variants': {'checkout': 'control'},
         'bucket': 7,
-        'someFutureKey': {'nested': [1, 2, 3]},
+        'someFutureKey': {
+          'nested': [1, 2, 3],
+        },
       });
       final data = cacheDataFromJsonString(raw);
       expect(data, isNotNull);

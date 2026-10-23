@@ -145,6 +145,16 @@ Future<void> postFetchEvent({
 ///
 /// Hash helper producing the bucketing identity sent as `?userHash=`;
 /// only the hash travels, raw ID never leaves the device.
+///
+/// Deprecated: the server ignores `userHash` for bucketing
+/// (accepted-but-ignored, `X-CW-Deprecated-userHash` compat header
+/// stamped). Emission stays byte-identical for the compat window; stop
+/// sending — pass nothing and rely on the stable `?b=` bucket. Will be
+/// removed in the next major release.
+@Deprecated(
+  'Server ignores userHash for bucketing (accepted-but-ignored, compat header stamped); '
+  'stop sending userId and rely on the stable ?b= bucket; will be removed in the next major release.',
+)
 String sha256Hex16(String userId) {
   if (userId.isEmpty) return '';
   return crypto.sha256.convert(utf8.encode(userId)).toString().substring(0, 16);

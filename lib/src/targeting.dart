@@ -27,8 +27,16 @@ class Targeting {
   /// Stable install ID hashed to `userHash` + `percentile` bucketing (`Bucket(userHash,seed)`).
   /// Hashed client-side to `?userHash=<sha256hex16>`; raw ID never leaves the device.
   ///
-  /// The server honors a well-formed 16-hex hash for bucketing/exposure
-  /// identity and falls back to its daily anonID otherwise.
+  /// Deprecated: the server ignores `userHash` for bucketing
+  /// (accepted-but-ignored, `X-CW-Deprecated-userHash` compat header
+  /// stamped). Emission stays for the compat window so old servers keep
+  /// treating the fetch as anonymous 200; stop sending — pass nothing and
+  /// rely on the stable `?b=` bucket. Will be removed in the next major
+  /// release.
+  @Deprecated(
+    'Server ignores userHash for bucketing (accepted-but-ignored, compat header stamped); '
+    'stop sending userId and rely on the stable ?b= bucket; will be removed in the next major release.',
+  )
   final String userId;
 
   /// e.g. `ios`, `android`, `web`.
@@ -77,11 +85,11 @@ class Targeting {
   /// Query params for `GET /api/v1/env/{env}/config`. Empty fields omitted.
   /// `customAttrs` encoded as compact JSON; empty map omitted.
   /// [userId] is emitted as `?userHash=<sha256hex16>` (empty omitted;
-  /// see [userId] for the honored-hash rule).
+  /// see [userId] for the accepted-but-ignored rule).
   ///
-  /// Deprecated: `country` is accepted-but-ignored (the server derives
-  /// country per request); emission stays for compat and will be removed
-  /// in the next major release.
+  /// Deprecated: `userHash`/`country` are accepted-but-ignored (the server
+  /// ignores client identity/country per request); emission stays for
+  /// compat and will be removed in the next major release.
   Map<String, String> toQueryParameters() {
     final q = <String, String>{};
     if (userId.trim().isNotEmpty) q['userHash'] = sha256Hex16(userId.trim());

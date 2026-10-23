@@ -180,9 +180,9 @@ evaluate `rules` per fetch (`userId` → `?userHash=<sha256hex16>`,
 `platform`,
 `appVersion`, `locale`, `country`, `customAttrs` → `?attrs=` JSON).
 Empty strings / empty maps are omitted (anonymous). The install ID is a
-stable value hashed client-side; the server honors a well-formed 16-hex
-`userHash` for bucketing and falls back to its daily anonID otherwise —
-raw IDs never leave the device.
+stable value hashed client-side; the server ignores `userHash`
+for bucketing (accepted-but-ignored, deprecated — stop sending and
+rely on the stable `?b=` bucket) — raw IDs never leave the device.
 
 Targeting is sticky: `setTargeting` replaces the stored targeting without
 fetching, and the next `fetchAndActivate` (including realtime ticks)
@@ -255,8 +255,8 @@ See `example/main.dart` for a runnable demo.
 
 Every 200 fetch posts one best-effort env-wide fetch event (`flag: ""`)
 with `sha256Hex16(userId)[:16]` as the identity hash (empty userId sends
-`""`). The server honors a well-formed 16-hex `userHash` for exposure
-identity and falls back to its daily anonID otherwise — raw IDs never
+`""`). The server ignores `userHash` for exposure identity
+(accepted-but-ignored, deprecated) — raw IDs never
 leave the device. The POST is awaited with a 5s timeout but never fails the
 fetch: network faults, timeouts, and non-2xx responses are swallowed.
 

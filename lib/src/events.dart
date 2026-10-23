@@ -50,12 +50,20 @@ Future<void> postEvent({
   Duration timeout = const Duration(seconds: 5),
   bool verbose = false,
   EventKind kind = EventKind.fetch,
+  int? bucket,
 }) async {
   try {
     cwDebug(verbose, () => 'events POST start env=$env');
-    final uri = Uri.parse(
+    final base = Uri.parse(
       '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/env/${Uri.encodeComponent(env)}/events',
     );
+    // Stable-bucket join: when a bucket is persisted, send it as ?b=
+    // (the same ?b= the fetch used) so server deriveIdentity honors it
+    // and fetch arms join exposure attribution. Body userHash stays
+    // accepted-but-ignored (byte-identical emission below).
+    final uri = (bucket != null && bucket >= 0 && bucket <= 9999)
+        ? base.replace(queryParameters: {'b': '$bucket'})
+        : base;
     final body = jsonEncode({
       'events': [
         {
@@ -111,6 +119,7 @@ Future<void> postFetchEvent({
   Duration timeout = const Duration(seconds: 5),
   bool verbose = false,
   String kind = 'fetch',
+  int? bucket,
 }) async {
   if (kind != 'fetch' && kind != 'exposure') {
     cwDebug(verbose, () => 'events POST skipped env=$env invalid kind=$kind');
@@ -128,15 +137,14 @@ Future<void> postFetchEvent({
     timeout: timeout,
     verbose: verbose,
     kind: kind == 'exposure' ? EventKind.exposure : EventKind.fetch,
+    bucket: bucket,
   );
 }
 
 /// `sha256hex16`: lowercase `hex(sha256(utf8(userId)))[:16]`.
 ///
-/// Deprecated: the server ignores client-sent identity and derives an
-/// ephemeral anonID per request. Kept for the compat window; will be
-/// removed in the next major release.
-@Deprecated('Server derives ephemeral anonID; client identity hash is ignored and will be removed next major.')
+/// Hash helper producing the bucketing identity sent as `?userHash=`;
+/// only the hash travels, raw ID never leaves the device.
 String sha256Hex16(String userId) {
   if (userId.isEmpty) return '';
   return crypto.sha256.convert(utf8.encode(userId)).toString().substring(0, 16);

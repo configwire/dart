@@ -55,6 +55,8 @@ enum FetchStatus {
 ///
 /// Concurrency: [fetchAndActivate] has no lock (single-threaded Dart).
 /// Two overlapping calls both run; last-completes-wins on values/etag.
+/// The stable bucket is the exception: parallel cold fetches are
+/// first-write-wins (a losing racer never clobbers the winner).
 /// Callers that need serialization should `await` each call.
 ///
 /// Privacy: the apiKey is sent only as the `X-ConfigWire-Key` header and
@@ -73,7 +75,8 @@ class ConfigWire {
     this._targeting = Targeting.empty,
   }) : _defaults = Map<String, Object?>.from(defaults),
        _values = Map<String, Object?>.from(defaults),
-       _store = store ?? MemoryCacheStore();
+       _store = store ?? MemoryCacheStore(),
+       _storeExplicit = store != null;
 
   /// SDK key, sent only as the `X-ConfigWire-Key` header and never logged.
   final String apiKey;
@@ -139,9 +142,38 @@ class ConfigWire {
 
   /// Cache persistence. When null at construction, [MemoryCacheStore]
   /// is used (session only, no disk); pass a [CacheStore]
-  /// implementation for disk persistence.
-  final CacheStore _store;
+  /// implementation for disk persistence. May be replaced once via
+  /// [setStore] before [ensureInitialized] runs.
+  CacheStore _store;
 
+  bool _storeExplicit;
+
+  /// Backing [CacheStore], exposed for Flutter validation.
+  CacheStore get store => _store;
+
+  /// Whether a [CacheStore] was explicitly provided; the Flutter companion
+  /// auto-attaches its default store only when false.
+  bool get hasExplicitStore => _storeExplicit;
+
+  /// Replaces the backing [CacheStore] before initialization.
+  ///
+  /// Lets `configureFlutter(store: ...)` upgrade a [ConfigWire] built
+  /// without `store:`. Late calls (after [ensureInitialized] starts) are
+  /// ignored — swapping then would fork cached state. Never throws.
+  void setStore(CacheStore store) {
+    if (_initialized || _initFuture != null) {
+      assert(
+        false,
+        'setStore: ignored, already initialized (store is fixed after '
+        'ensureInitialized starts). Pass store: in the ConfigWire '
+        'constructor or call setStore before ensureInitialized.',
+      );
+      cwDebug(verbose, () => 'setStore: ignored, already initialized');
+      return;
+    }
+    _store = store;
+    _storeExplicit = true;
+  }
   /// Minimum time between server fetches; `Duration.zero` disables
   /// throttling (dev). Default 12h. Only successful fetches (200/304)
   /// arm the throttle — errors never block retries (offline devices
@@ -177,6 +209,12 @@ class ConfigWire {
 
   String? _etag;
   int _version = 0;
+
+  /// Server-minted stable bucket (`0-9999`, null when absent).
+  /// Persisted beside the verbatim etag, sent as `?b=`, echoed by the
+  /// server on later 200s. A 304 never clears it; a 200 without the
+  /// field (old server) keeps the prior value.
+  int? _bucket;
   DateTime? _lastFetchAt;
   FetchStatus _lastFetchStatus = FetchStatus.none;
 
@@ -196,6 +234,10 @@ class ConfigWire {
 
   /// Stored etag served verbatim back via `If-None-Match` (exact match).
   String? get etag => _etag;
+
+  /// Persisted stable bucket (`0-9999`), or null when no 200 has minted
+  /// one yet (or the server predates the bucket field). Sent as `?b=`.
+  int? get bucket => _bucket;
 
   /// Latest activated release version (0 when nothing activated yet).
   int get version => _version;
@@ -381,6 +423,7 @@ class ConfigWire {
         version: hit.version,
         fetchedAt: hit.fetchedAt,
         variants: hit.variants,
+        bucket: hit.bucket,
       );
     } else if (loadFailed) {
       cwDebug(verbose, () => 'cache corrupt (load threw) env=$env');
@@ -426,6 +469,10 @@ class ConfigWire {
     }
 
     final client = _http;
+    // Snapshot the bucket at request start for the first-write-wins
+    // guard below: parallel cold fetches all start bucket-less, and the
+    // winner is whichever 200 applies first.
+    final bucketAtStart = _bucket;
     try {
       final uri = _buildConfigUri(_targeting);
       final headers = <String, String>{'X-ConfigWire-Key': apiKey};
@@ -464,12 +511,25 @@ class ConfigWire {
       }
 
       final at = DateTime.now().toUtc();
+      // First-write-wins: this fetch started bucket-less but a racing
+      // fetch already persisted one while we were in flight. Keep the
+      // winner (pass null = keep prior) instead of clobbering it with
+      // our own freshly minted bucket. A racing second 200 therefore
+      // never overwrites an already-persisted bucket, and the losing
+      // save below re-persists the winner so the store stays consistent.
+      // Sequential fetches are unaffected: they start with the bucket
+      // set, so their 200 (a server echo of the same number) applies.
+      int? bucketToApply = parsed.bucket;
+      if (bucketAtStart == null && _bucket != null) {
+        bucketToApply = null;
+      }
       _applyServerValues(
         values: parsed.values,
         etag: parsed.etag,
         version: parsed.version,
         fetchedAt: at,
         variants: parsed.variants,
+        bucket: bucketToApply,
       );
       _lastFetchAt = at;
       _lastFetchStatus = FetchStatus.success;
@@ -489,6 +549,7 @@ class ConfigWire {
             fetchedAt: at,
             values: parsed.values,
             variants: Map<String, String>.from(_variants),
+            bucket: _bucket,
           ),
         );
       } catch (e) {
@@ -552,6 +613,7 @@ class ConfigWire {
         version: _version,
         verbose: verbose,
         kind: EventKind.exposure,
+        bucket: _bucket,
       );
     } catch (e) {
       final safe = apiKey.isNotEmpty
@@ -595,6 +657,7 @@ class ConfigWire {
         version: _version,
         verbose: verbose,
         kind: EventKind.fetch,
+        bucket: _bucket,
       );
     } catch (e) {
       final safe = apiKey.isNotEmpty
@@ -605,25 +668,32 @@ class ConfigWire {
   }
 
   /// Builds `GET /api/v1/env/{env}/config?...` with targeting query
-  /// params omitted when empty (`Targeting.toQueryParameters`).
+  /// params omitted when empty ([Targeting.toQueryParameters]).
   /// Identity is hash-only: `userId` emits as `?userHash=<sha256hex16>`,
   /// never raw `?uid=`; empty identity sends the bare path.
+  /// When a stable bucket is persisted it is sent as `?b=<n>` alongside
+  /// the targeting params (canonical plain int string, never mangled).
   Uri _buildConfigUri(Targeting targeting) {
     final base = baseUrl.replaceAll(RegExp(r'/+$'), '');
     final path = '/api/v1/env/${Uri.encodeComponent(env)}/config';
     final query = targeting.toQueryParameters();
+    if (_bucket != null) query['b'] = '$_bucket';
     if (query.isEmpty) return Uri.parse('$base$path');
     return Uri.parse('$base$path').replace(queryParameters: query);
   }
 
   /// Applies one server layer: values merged over defaults, anonymous
   /// (`""`) variants omitted, etag/version/fetchAt replaced verbatim.
+  /// A non-null [bucket] replaces the persisted bucket; null keeps the
+  /// prior value (304 path never calls here, old servers omit the field,
+  /// and the first-write-wins guard passes null for a losing racer).
   void _applyServerValues({
     required Map<String, Object?> values,
     required String etag,
     required int version,
     required DateTime fetchedAt,
     required Map<String, String> variants,
+    int? bucket,
   }) {
     cwDebug(
       verbose,
@@ -640,6 +710,7 @@ class ConfigWire {
       ..addEntries(variants.entries.where((e) => e.value.isNotEmpty));
     _etag = etag;
     _version = version;
+    if (bucket != null) _bucket = bucket;
     // Cache-loaded rows arm the throttle (offline-first: a fresh cache
     // means "just fetched"); live 200/304 paths set _lastFetchAt
     // explicitly after this call.
@@ -711,6 +782,33 @@ class ConfigWire {
       verbose,
       () => 'realtime disconnected env=$env wasActive=${updater != null}',
     );
+  }
+
+  /// Clears the stable bucket without touching values, etag, version,
+  /// or targeting — the logout/user-switch seam. Nulls the in-memory
+  /// [_bucket] and re-persists the current row with `bucket: null`, so
+  /// the next [fetchAndActivate] sends no `?b=` and a later restart
+  /// stays bucket-absent. Blocked storage degrades to a memory-only
+  /// clear. Never throws.
+  Future<void> clearBucket() async {
+    _bucket = null;
+    try {
+      await _store.save(
+        CacheData(
+          etag: _etag ?? '',
+          version: _version,
+          fetchedAt: _lastFetchAt ?? DateTime.now().toUtc(),
+          values: Map<String, Object?>.from(_values),
+          variants: Map<String, String>.from(_variants),
+          bucket: null,
+        ),
+      );
+    } catch (e) {
+      final safe = apiKey.isNotEmpty
+          ? '$e'.replaceAll(apiKey, '<redacted>')
+          : '$e';
+      cwDebug(verbose, () => 'clearBucket save failed env=$env error=$safe');
+    }
   }
 
   /// Closes the realtime updater (if any), then the [onUpdate] stream
@@ -786,12 +884,17 @@ class _FetchDoc {
     required this.variants,
     required this.etag,
     required this.version,
+    this.bucket,
   });
 
   final Map<String, Object?> values;
   final Map<String, String> variants;
   final String etag;
   final int version;
+
+  /// Server-minted stable bucket (`0-9999`); null when the field is
+  /// absent or misshapen (old server) — the caller keeps the prior value.
+  final int? bucket;
 }
 
 _FetchDoc? _parseFetchBody(String body) {
@@ -813,11 +916,20 @@ _FetchDoc? _parseFetchBody(String body) {
     }
     final version = m['version'];
     final v = version is int ? version : (version is num ? version.toInt() : 0);
+    // Tolerant bucket parse (mirrors CacheData.fromJson): canonical
+    // `0-9999` ints only; missing, wrong shapes, and out-of-range parse
+    // as absent (null) so old servers keep working and never throw.
+    int? bucket;
+    final rawBucket = m['bucket'];
+    if (rawBucket is int && rawBucket >= 0 && rawBucket <= 9999) {
+      bucket = rawBucket;
+    }
     return _FetchDoc(
       values: Map<String, Object?>.from(values),
       variants: variants,
       etag: etag,
       version: v,
+      bucket: bucket,
     );
   } catch (_) {
     return null;

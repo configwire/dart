@@ -21,6 +21,7 @@ class CacheData {
     required this.fetchedAt,
     required this.values,
     Map<String, String>? variants,
+    this.bucket,
   }) : variants = variants ?? {};
 
   /// Etag served verbatim back via `If-None-Match` (exact match only).
@@ -38,13 +39,20 @@ class CacheData {
   /// Non-anonymous variant arms; `""` entries are omitted upstream.
   final Map<String, String> variants;
 
-  Map<String, Object?> toJson() => {
-    'etag': etag,
-    'version': version,
-    'fetchedAt': fetchedAt.toUtc().toIso8601String(),
-    'values': values,
-    'variants': variants,
-  };
+  /// Stable bucket slot (`0-9999`, null when absent); never coerced.
+  final int? bucket;
+
+  Map<String, Object?> toJson() {
+    final m = <String, Object?>{
+      'etag': etag,
+      'version': version,
+      'fetchedAt': fetchedAt.toUtc().toIso8601String(),
+      'values': values,
+      'variants': variants,
+    };
+    if (bucket != null) m['bucket'] = bucket;
+    return m;
+  }
 
   static CacheData? fromJson(Map<String, Object?> json) {
     final etag = json['etag'];
@@ -71,12 +79,20 @@ class CacheData {
         }
       }
     }
+    // Tolerant parsing: `bucket` is canonical `0-9999` ints only.
+    // Missing, wrong shapes, and out-of-range parse as absent (null).
+    int? bucket;
+    final rawBucket = json['bucket'];
+    if (rawBucket is int && rawBucket >= 0 && rawBucket <= 9999) {
+      bucket = rawBucket;
+    }
     return CacheData(
       etag: etag,
       version: v,
       fetchedAt: at,
       values: Map<String, Object?>.from(values),
       variants: variants,
+      bucket: bucket,
     );
   }
 }

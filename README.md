@@ -18,7 +18,7 @@ Or pin it in your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  configwire: ^0.3.1
+  configwire: ^0.3.2
 ```
 
 If pinning to git:
@@ -179,7 +179,10 @@ Targeting attributes are sent as fetch query params so the server can
 evaluate `rules` per fetch (`userId` → `?userHash=<sha256hex16>`,
 `platform`,
 `appVersion`, `locale`, `country`, `customAttrs` → `?attrs=` JSON).
-Empty strings / empty maps are omitted (anonymous).
+Empty strings / empty maps are omitted (anonymous). The install ID is a
+stable value hashed client-side; the server honors a well-formed 16-hex
+`userHash` for bucketing and falls back to its daily anonID otherwise —
+raw IDs never leave the device.
 
 Targeting is sticky: `setTargeting` replaces the stored targeting without
 fetching, and the next `fetchAndActivate` (including realtime ticks)
@@ -252,7 +255,9 @@ See `example/main.dart` for a runnable demo.
 
 Every 200 fetch posts one best-effort env-wide fetch event (`flag: ""`)
 with `sha256Hex16(userId)[:16]` as the identity hash (empty userId sends
-`""`). The POST is awaited with a 5s timeout but never fails the
+`""`). The server honors a well-formed 16-hex `userHash` for exposure
+identity and falls back to its daily anonID otherwise — raw IDs never
+leave the device. The POST is awaited with a 5s timeout but never fails the
 fetch: network faults, timeouts, and non-2xx responses are swallowed.
 
 `postEvent` takes an optional `flag` param (default `""`) and a

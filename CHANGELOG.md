@@ -1,3 +1,20 @@
+## 0.3.2
+
+### Changed
+
+- Backward compatible with 0.3.x: no migration needed — stable install
+  IDs are honored-hash again with no signature change.
+  `@Deprecated` lifted from `Targeting.userId`
+  (`lib/src/targeting.dart`) and `sha256Hex16` (`lib/src/events.dart`):
+  `userId` is hashed client-side to `?userHash=<16-hex>` and the server
+  honors a well-formed hash for bucketing/exposure identity, falling
+  back to its daily anonID otherwise; raw IDs never leave the device.
+  Existing `Targeting(userId: ...)` calls compile unchanged and keep
+  their buckets. Pairs with the server honored-hash change after
+  `v0.1.13`; older servers accept the same fetches as anonymous (still
+  `200`). `Targeting.country` stays deprecated (server derives country
+  from headers).
+
 ## 0.3.1
 
 ### Deprecated

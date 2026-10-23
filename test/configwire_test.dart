@@ -10,6 +10,17 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
 
+/// Store double that simulates blocked storage (private mode, denied
+/// quota): every op throws, which the client degrades to
+/// load-null/save-noop and never throws.
+class _ThrowingStore implements CacheStore {
+  @override
+  Future<CacheData?> load() async => throw StateError('blocked');
+
+  @override
+  Future<void> save(CacheData data) async => throw StateError('blocked');
+}
+
 /// Deterministic MockClient suite for the offline-first client.
 ///
 /// Each test gets a FRESH in-memory store (MemoryCacheStore) so no test
@@ -1051,6 +1062,301 @@ void main() {
         kind: 'bogus',
       );
       expect(posts, equals(0));
+    });
+  });
+
+  group('stable bucket fetch wire (T5)', () {
+    String fetch200Bucket({
+      String etag = 'e1',
+      int version = 1,
+      Map<String, Object?>? values,
+      int? bucket,
+    }) {
+      final m = <String, Object?>{
+        'version': version,
+        'etag': etag,
+        'values': values ?? {'k': 'v'},
+        'variants': <String, String>{},
+        'fetchAt': '2026-09-22T00:00:00.000Z',
+      };
+      if (bucket != null) m['bucket'] = bucket;
+      return jsonEncode(m);
+    }
+
+    test('200 with bucket persists it beside etag (store round-trip)',
+        () async {
+      final store = MemoryCacheStore();
+      final mock = MockClient((req) async {
+        if (req.method == 'POST') {
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        return http.Response(fetch200Bucket(bucket: 42), 200);
+      });
+      final client = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: mock,
+        store: store,
+        minimumFetchInterval: Duration.zero,
+      );
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(client.bucket, equals(42));
+      expect(client.etag, equals('e1'));
+      final saved = await store.load();
+      expect(saved, isNotNull);
+      expect(saved!.bucket, equals(42));
+      expect(saved.etag, equals('e1'));
+    });
+
+    test('?b= sent when a bucket is persisted, absent on cold fetch',
+        () async {
+      final seen = <Map<String, String>>[];
+      final mock = MockClient((req) async {
+        if (req.method == 'POST') {
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        seen.add(Map<String, String>.from(req.url.queryParameters));
+        return http.Response(fetch200Bucket(bucket: 42), 200);
+      });
+      final client = await clientWith(mock);
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(seen.last.containsKey('b'), isFalse);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(seen.last['b'], equals('42'));
+    });
+
+    test('bucket survives etag change on next 200', () async {
+      var calls = 0;
+      String? lastB;
+      final mock = MockClient((req) async {
+        if (req.method == 'POST') {
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        calls++;
+        lastB = req.url.queryParameters['b'];
+        if (calls == 1) return http.Response(fetch200Bucket(etag: 'e1', bucket: 42), 200);
+        return http.Response(
+          fetch200Bucket(etag: 'e2', version: 2, bucket: 42),
+          200,
+        );
+      });
+      final client = await clientWith(mock);
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(client.bucket, equals(42));
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(client.bucket, equals(42));
+      expect(client.etag, equals('e2'));
+      expect(lastB, equals('42'));
+    });
+
+    test('304 keeps the old bucket (never clears, still cached)', () async {
+      var calls = 0;
+      final store = MemoryCacheStore();
+      final mock = MockClient((req) async {
+        if (req.method == 'POST') {
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        calls++;
+        if (calls == 1) return http.Response(fetch200Bucket(etag: 'e1', bucket: 42), 200);
+        expect(req.headers['If-None-Match'], equals('e1'));
+        return http.Response('', 304);
+      });
+      final client = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: mock,
+        store: store,
+        minimumFetchInterval: Duration.zero,
+      );
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(await client.fetchAndActivate(), isFalse);
+      expect(client.lastFetchStatus, equals(FetchStatus.cached));
+      expect(client.bucket, equals(42));
+      expect(client.etag, equals('e1'));
+      expect(client.getString('k'), equals('v'));
+      final saved = await store.load();
+      expect(saved!.bucket, equals(42));
+    });
+
+    test('If-None-Match stays exactly the stored etag (no mangling)',
+        () async {
+      var calls = 0;
+      String? sentEtag;
+      final mock = MockClient((req) async {
+        if (req.method == 'POST') {
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        calls++;
+        if (calls == 1) {
+          return http.Response(fetch200Bucket(etag: 'abc123', bucket: 7), 200);
+        }
+        sentEtag = req.headers['If-None-Match'];
+        return http.Response('', 304);
+      });
+      final client = await clientWith(mock);
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(client.etag, equals('abc123'));
+      expect(await client.fetchAndActivate(), isFalse);
+      expect(sentEtag, equals('abc123'));
+      expect(sentEtag, isNot(contains('.seed')));
+      expect(sentEtag, isNot(contains('7')));
+    });
+
+    test('old-server 200 without bucket keeps prior bucket (or absent)',
+        () async {
+      var calls = 0;
+      final mock = MockClient((req) async {
+        if (req.method == 'POST') {
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        calls++;
+        if (calls == 1) return http.Response(fetch200Bucket(bucket: 42), 200);
+        return http.Response(fetch200Bucket(etag: 'e2', version: 2), 200);
+      });
+      final client = await clientWith(mock);
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(client.bucket, equals(42));
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(client.bucket, equals(42));
+      expect(client.etag, equals('e2'));
+
+      // Cold client against an old server stays bucket-absent, no throw.
+      final mock2 = MockClient((req) async {
+        if (req.method == 'POST') {
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        return http.Response(fetch200Bucket(), 200);
+      });
+      final cold = await clientWith(mock2);
+      addTearDown(cold.dispose);
+      expect(await cold.fetchAndActivate(), isTrue);
+      expect(cold.bucket, isNull);
+    });
+
+    test('parallel cold-fetch first-write-wins (second 200 never clobbers)',
+        () async {
+      var gets = 0;
+      final mock = MockClient((req) async {
+        if (req.method == 'POST') {
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        gets++;
+        final n = gets;
+        if (n == 1) {
+          await Future<void>.delayed(const Duration(milliseconds: 60));
+          return http.Response(fetch200Bucket(etag: 'e-slow', bucket: 111), 200);
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        return http.Response(fetch200Bucket(etag: 'e-fast', bucket: 222), 200);
+      });
+      final store = MemoryCacheStore();
+      final client = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: mock,
+        store: store,
+        minimumFetchInterval: Duration.zero,
+      );
+      addTearDown(client.dispose);
+      final results = await Future.wait([
+        client.fetchAndActivate(),
+        client.fetchAndActivate(),
+      ]);
+      expect(results, equals([true, true]));
+      // The fast (first-completing) fetch won; the slow second 200 kept it.
+      expect(client.bucket, equals(222));
+      final saved = await store.load();
+      expect(saved!.bucket, equals(222));
+      // Follow-up fetch echoes the winner via ?b= and keeps it.
+      String? echoedB;
+      final mock2 = MockClient((req) async {
+        if (req.method == 'POST') {
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        echoedB = req.url.queryParameters['b'];
+        return http.Response(fetch200Bucket(etag: 'e3', version: 3, bucket: 222), 200);
+      });
+      final client2 = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: mock2,
+        store: store,
+        minimumFetchInterval: Duration.zero,
+      );
+      addTearDown(client2.dispose);
+      await client2.ensureInitialized();
+      expect(echoedB, equals('222'));
+      expect(client2.bucket, equals(222));
+    });
+
+    test('clearBucket nulls bucket, persists bucket:null, stops sending ?b=',
+        () async {
+      final store = MemoryCacheStore();
+      String? lastB;
+      final mock = MockClient((req) async {
+        if (req.method == 'POST') {
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        lastB = req.url.queryParameters['b'];
+        return http.Response(fetch200Bucket(etag: 'e1', bucket: 42), 200);
+      });
+      final client = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: mock,
+        store: store,
+        minimumFetchInterval: Duration.zero,
+      );
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(client.bucket, equals(42));
+
+      await client.clearBucket();
+      expect(client.bucket, isNull);
+      final saved = await store.load();
+      expect(saved, isNotNull);
+      expect(saved!.bucket, isNull);
+      // Values/etag survive the clear; only the bucket slot is nulled.
+      expect(client.etag, equals('e1'));
+      expect(client.getString('k'), equals('v'));
+
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(lastB, isNull);
+    });
+
+    test('clearBucket never throws on blocked storage', () async {
+      final mock = MockClient((req) async {
+        if (req.method == 'POST') {
+          return http.Response('{"accepted":1,"status":202}', 202);
+        }
+        return http.Response(fetch200Bucket(etag: 'e1', bucket: 42), 200);
+      });
+      final client = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: mock,
+        store: _ThrowingStore(),
+        minimumFetchInterval: Duration.zero,
+      );
+      addTearDown(client.dispose);
+      expect(await client.fetchAndActivate(), isTrue);
+      expect(client.bucket, equals(42));
+      // Must not throw even though every save fails; in-memory clears.
+      await client.clearBucket();
+      expect(client.bucket, isNull);
+      expect(client.getString('k'), equals('v'));
     });
   });
 }

@@ -91,5 +91,75 @@ void main() {
       expect(cacheDataFromJsonString('[1,2]'), isNull);
       expect(cacheDataFromJsonString('42'), isNull);
     });
+
+    test('bucket int 0-9999 round-trips through toJson/fromJson', () {
+      for (final b in [0, 42, 9999]) {
+        final data = CacheData(
+          etag: 'e',
+          version: 1,
+          fetchedAt: DateTime.utc(2026, 9, 22),
+          values: <String, Object?>{},
+          bucket: b,
+        );
+        final decoded = CacheData.fromJson(
+          Map<String, Object?>.from(jsonDecode(jsonEncode(data.toJson()))),
+        );
+        expect(decoded, isNotNull);
+        expect(decoded!.bucket, b);
+        final viaString = cacheDataFromJsonString(
+          jsonEncode(data.toJson()),
+        );
+        expect(viaString, isNotNull);
+        expect(viaString!.bucket, b);
+      }
+    });
+
+    test('missing bucket key parses as absent (null)', () {
+      final decoded = CacheData.fromJson({
+        'etag': 'e',
+        'version': 1,
+        'fetchedAt': '2026-09-22T00:00:00.000Z',
+        'values': <String, Object?>{},
+      });
+      expect(decoded, isNotNull);
+      expect(decoded!.bucket, isNull);
+      expect(decoded.toJson().containsKey('bucket'), isFalse);
+    });
+
+    test('wrong bucket shapes parse as absent, never throw', () {
+      for (final bad in ['42', 12.5, 10000, -1, null]) {
+        final decoded = CacheData.fromJson({
+          'etag': 'e',
+          'version': 1,
+          'fetchedAt': '2026-09-22T00:00:00.000Z',
+          'values': <String, Object?>{},
+          'bucket': bad,
+        });
+        expect(decoded, isNotNull, reason: 'bucket=$bad');
+        expect(decoded!.bucket, isNull, reason: 'bucket=$bad');
+      }
+      expect(
+        cacheDataFromJsonString(
+          '{"etag":"e","version":1,"fetchedAt":"2026-09-22T00:00:00.000Z",'
+          '"values":{},"bucket":"42"}',
+        )!.bucket,
+        isNull,
+      );
+    });
+
+    test('old JSON without bucket loads with all fields intact', () {
+      final raw =
+          '{"etag":"etag-abc","version":3,'
+          '"fetchedAt":"2026-09-22T12:34:56.000Z",'
+          '"values":{"flag_bool":true,"flag_int":7},'
+          '"variants":{"flag_bool":"treated"}}';
+      final decoded = cacheDataFromJsonString(raw);
+      expect(decoded, isNotNull);
+      expect(decoded!.etag, 'etag-abc');
+      expect(decoded.version, 3);
+      expect(decoded.values, {'flag_bool': true, 'flag_int': 7});
+      expect(decoded.variants, {'flag_bool': 'treated'});
+      expect(decoded.bucket, isNull);
+    });
   });
 }

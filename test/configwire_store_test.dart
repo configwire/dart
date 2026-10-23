@@ -244,5 +244,57 @@ void main() {
       expect(await memClient.fetchAndActivate(), isTrue);
       expect(await memStore.load(), isNotNull);
     });
+
+    test('hasExplicitStore: default-constructed is false', () {
+      final client = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: okClient(),
+        minimumFetchInterval: Duration.zero,
+      );
+      addTearDown(client.dispose);
+      expect(client.hasExplicitStore, isFalse);
+    });
+
+    test('hasExplicitStore: explicit MemoryCacheStore is true', () {
+      final client = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: okClient(),
+        minimumFetchInterval: Duration.zero,
+        store: MemoryCacheStore(),
+      );
+      addTearDown(client.dispose);
+      expect(client.hasExplicitStore, isTrue);
+    });
+
+    test('hasExplicitStore: fake store is true', () {
+      final client = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: okClient(),
+        minimumFetchInterval: Duration.zero,
+        store: FakeStore(),
+      );
+      addTearDown(client.dispose);
+      expect(client.hasExplicitStore, isTrue);
+    });
+
+    test('hasExplicitStore: setStore on default flips to true', () {
+      final client = ConfigWire(
+        apiKey: 'test-key',
+        env: 'dev',
+        baseUrl: 'http://localhost:8090',
+        client: okClient(),
+        minimumFetchInterval: Duration.zero,
+      );
+      addTearDown(client.dispose);
+      expect(client.hasExplicitStore, isFalse);
+      client.setStore(MemoryCacheStore());
+      expect(client.hasExplicitStore, isTrue);
+    });
   });
 }

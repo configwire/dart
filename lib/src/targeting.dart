@@ -24,14 +24,11 @@ class Targeting {
     this.customAttrs = const {},
   });
 
-  /// User identity hashed to `userHash` + `percentile` bucketing (`Bucket(userHash,seed)`).
-  /// Raw identity is never sent; [toQueryParameters] emits only `sha256Hex16(userId)`.
+  /// Stable install ID hashed to `userHash` + `percentile` bucketing (`Bucket(userHash,seed)`).
+  /// Hashed client-side to `?userHash=<sha256hex16>`; raw ID never leaves the device.
   ///
-  /// Deprecated: the server now derives an ephemeral anonID per request
-  /// (HMAC of IP + User-Agent with a daily-rotated salt) and ignores the
-  /// client-sent `userHash`. This field is accepted-but-ignored and will be
-  /// removed in the next major release; stop setting it.
-  @Deprecated('Server derives ephemeral anonID; userId is ignored and will be removed next major.')
+  /// The server honors a well-formed 16-hex hash for bucketing/exposure
+  /// identity and falls back to its daily anonID otherwise.
   final String userId;
 
   /// e.g. `ios`, `android`, `web`.
@@ -77,11 +74,12 @@ class Targeting {
 
   /// Query params for `GET /api/v1/env/{env}/config`. Empty fields omitted.
   /// `customAttrs` encoded as compact JSON; empty map omitted.
-  /// [userId] is emitted as `?userHash=<sha256hex16>` (empty omitted).
+  /// [userId] is emitted as `?userHash=<sha256hex16>` (empty omitted;
+  /// see [userId] for the honored-hash rule).
   ///
-  /// Deprecated: `userHash`/`country` are accepted-but-ignored (the server
-  /// derives identity/country per request); emission stays for compat and
-  /// will be removed in the next major release.
+  /// Deprecated: `country` is accepted-but-ignored (the server derives
+  /// country per request); emission stays for compat and will be removed
+  /// in the next major release.
   Map<String, String> toQueryParameters() {
     final q = <String, String>{};
     if (userId.trim().isNotEmpty) q['userHash'] = sha256Hex16(userId.trim());

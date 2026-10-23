@@ -45,7 +45,9 @@ class Targeting {
   /// Deprecated: the server derives country from request headers and
   /// ignores the client-sent value. Will be removed in the next major
   /// release; stop setting it.
-  @Deprecated('Server derives country from headers; country is ignored and will be removed next major.')
+  @Deprecated(
+    'Server derives country from headers; country is ignored and will be removed next major.',
+  )
   final String country;
 
   /// Flat map for `custom.<name>` conditions (`?attrs=` JSON object).

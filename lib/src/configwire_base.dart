@@ -174,6 +174,7 @@ class ConfigWire {
     _store = store;
     _storeExplicit = true;
   }
+
   /// Minimum time between server fetches; `Duration.zero` disables
   /// throttling (dev). Default 12h. Only successful fetches (200/304)
   /// arm the throttle — errors never block retries (offline devices

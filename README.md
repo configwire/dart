@@ -6,7 +6,7 @@ Works on Dart VM and Flutter from this single package — no Flutter
 facade needed. Requires Dart SDK `>=3.12.0`.
 
 Server wire details live in the server repo:
-`https://github.com/configwire/configwire/blob/main/docs/CONTRACT.md`.
+`https://github.com/configwire/configwire/blob/main/configwire/docs/CONTRACT.md`.
 
 ## Install
 
@@ -146,6 +146,7 @@ cw.lastFetchStatus; // FetchStatus none/success/cached/throttled/error
 cw.fetchTime; // last 200/304 time, or null
 cw.etag; // sent back verbatim as If-None-Match
 cw.version; // latest activated release, 0 when none
+cw.bucket; // stable ?b= slot (0-9999), or null when none minted yet
 ```
 
 Throttle and timeout knobs (constructor params):
@@ -157,7 +158,8 @@ Throttle and timeout knobs (constructor params):
 Wire behavior: the stored etag goes out as `If-None-Match` and an
 unchanged server answers `304` (status `cached`). A 200 replaces the
 server layer wholesale over the defaults underlay, persists to the
-store, then posts one analytics event (see below).
+store (including the minted `bucket` when present, first-write-wins),
+then posts one analytics event (see below).
 
 ## Startup
 
@@ -179,10 +181,27 @@ Targeting attributes are sent as fetch query params so the server can
 evaluate `rules` per fetch (`userId` → `?userHash=<sha256hex16>`,
 `platform`,
 `appVersion`, `locale`, `country`, `customAttrs` → `?attrs=` JSON).
-Empty strings / empty maps are omitted (anonymous). The install ID is a
-stable value hashed client-side; the server ignores `userHash`
-for bucketing (accepted-but-ignored, deprecated — stop sending and
-rely on the stable `?b=` bucket) — raw IDs never leave the device.
+Empty strings (after trim) / empty maps are omitted (anonymous).
+`userId` and `country` are deprecated, accepted-but-ignored: the
+server ignores `userHash` for bucketing (stamps
+`X-CW-Deprecated-userHash`) and derives country from request headers,
+so stop setting both — emission stays only for the compat window and
+is removed in the next major release. Raw IDs never leave the device
+(only the hash travels).
+
+Bucketing rides the stable `?b=` slot, not identity: each evaluated
+`200` may mint a `bucket` (`0`-`9999`) that the client persists
+first-write-wins and sends as `?b=` on fetch and events, so arms
+survive the server's daily anonID rotation. A `304` never clears it;
+a `200` without the field (older server) keeps the prior value.
+Inspect via `cw.bucket`; call `clearBucket()` on logout/user-switch
+to drop it (memory + store) so the next fetch sends no `?b=`.
+
+`customAttrs` keys must avoid PII/device identifiers (`email`,
+`phone`, `ip`, `deviceId`, `advertisingId`, `adid`, `idfa`, `idfv`,
+`androidId`, `serial`, `mac`, `imei`, case-insensitive) and stay
+under 8192 bytes: violations answer `400`/`414`, which surface as a
+fetch `error` status (`false`, never a throw).
 
 Targeting is sticky: `setTargeting` replaces the stored targeting without
 fetching, and the next `fetchAndActivate` (including realtime ticks)
@@ -244,7 +263,10 @@ Lifecycle notes:
 - `pollInterval` defaults to 15min and runs always, stream up or
   down. Worst-case staleness is `pollInterval` plus one fetch.
   Values under 1s are clamped to 1s.
-- Stream reconnects back off 1s, 2s, 4s, capped at 30s.
+- Stream reconnects back off 1s, 2s, 4s, 8s, 16s, then capped at 30s.
+  The server pings every 20s and closes streams at a 10min cap, and
+  caps 5 concurrent streams per SDK key (`429`): all surface on
+  status with a backoff retry, never as throws.
 - Inspect via `cw.realtime?.status`, `cw.realtime?.lastError`, and
   `cw.realtime?.isConnected`. Raw per-event payloads
   (`{version, etag}`) are on `cw.realtime?.notifications`.
@@ -257,7 +279,8 @@ Every 200 fetch posts one best-effort env-wide fetch event (`flag: ""`)
 with `sha256Hex16(userId)[:16]` as the identity hash (empty userId sends
 `""`). The server ignores `userHash` for exposure identity
 (accepted-but-ignored, deprecated) — raw IDs never
-leave the device. The POST is awaited with a 5s timeout but never fails the
+leave the device. When a stable bucket is persisted it rides along as
+`?b=` on the events POST too, so exposures join the fetch arm. The POST is awaited with a 5s timeout but never fails the
 fetch: network faults, timeouts, and non-2xx responses are swallowed.
 
 `postEvent` takes an optional `flag` param (default `""`) and a
@@ -320,11 +343,16 @@ Cached rows are `CacheData` JSON:
 ```json
 {"etag": "b41b62605c0df712", "version": 1,
  "fetchedAt": "2026-09-22T00:00:00.000Z",
- "values": {"launch_flag": true}, "variants": {"checkout": "control"}}
+ "values": {"launch_flag": true}, "variants": {"checkout": "control"},
+ "bucket": 1234}
 ```
 
+`bucket` is optional (absent on rows saved before the server minted
+one): it round-trips only canonical `0`-`9999` ints.
+
 Parsing is tolerant: files without `variants` load as `{}`,
-non-string variant entries are skipped, and bad JSON or wrong shapes
+non-string variant entries are skipped, a missing/misshapen/out-of-range
+`bucket` parses as absent (null), and bad JSON or wrong shapes
 load as `null` (caller falls back to defaults, never throws). Use
 `cacheDataFromJsonString` for the same null-on-bad-input parse from a
 raw string, or `CacheData.fromJson` on a decoded map. A loaded cache

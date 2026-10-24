@@ -1138,8 +1138,9 @@ void main() {
         }
         calls++;
         lastB = req.url.queryParameters['b'];
-        if (calls == 1)
+        if (calls == 1) {
           return http.Response(fetch200Bucket(etag: 'e1', bucket: 42), 200);
+        }
         return http.Response(
           fetch200Bucket(etag: 'e2', version: 2, bucket: 42),
           200,
@@ -1163,8 +1164,9 @@ void main() {
           return http.Response('{"accepted":1,"status":202}', 202);
         }
         calls++;
-        if (calls == 1)
+        if (calls == 1) {
           return http.Response(fetch200Bucket(etag: 'e1', bucket: 42), 200);
+        }
         expect(req.headers['If-None-Match'], equals('e1'));
         return http.Response('', 304);
       });

@@ -1,3 +1,14 @@
+## 0.3.3
+
+### Changed
+
+- Docs only, no code change: `README.md` aligned with the wire
+  contract and the client source (stable `?b=` bucket persistence /
+  `clearBucket`, `userId` / `country` accepted-but-ignored deprecation,
+  `customAttrs` PII denylist + 8192-byte limit, realtime backoff
+  sequence, cache `bucket` row, fixed `CONTRACT.md` link).
+  Supported server: `configwire ^0.1.13` or later.
+
 ## 0.3.2
 
 ### Changed
